@@ -1,29 +1,25 @@
-[[block]] struct Pixel {
+[[block]] struct Uniforms {
   pixel : vec2<f32>;
-};
-[[block]] struct Mouse {
   mouse : vec2<f32>;
 };
 
 [[binding(0), group(0)]] var textureFront : texture_2d<f32>;
 [[binding(1), group(0)]] var samplerFront : sampler;
-[[binding(2), group(0)]] var<uniform> p : Pixel;
-[[binding(3), group(0)]] var<uniform> m : Mouse;
+[[binding(2), group(0)]] var<uniform> u : Uniforms;
 
 [[stage(fragment)]]
 fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> {
-  var pixel = p.pixel;
-  var uv = coord_in.xy * pixel;
+  var uv = coord_in.xy * u.pixel;
   
   var sum = 0.0;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(-1., -1.)).g;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(-1., 0.)).g;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(-1., 1.)).g;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(1., -1.)).g;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(1., 0.)).g;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(1., 1.)).g;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(0., -1.)).g;
-  sum = sum + textureSample(textureFront, samplerFront, uv + pixel * vec2<f32>(0., 1.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(-1., -1.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(-1., 0.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(-1., 1.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(1., -1.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(1., 0.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(1., 1.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(0., -1.)).g;
+  sum = sum + textureSample(textureFront, samplerFront, uv + u.pixel * vec2<f32>(0., 1.)).g;
 
   var live = vec4<f32>(0., 1., 0., 1.);
   var dead = vec4<f32>(0., 0., 0., 1.);
@@ -31,7 +27,10 @@ fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> 
 
   var output: vec4<f32>;
   var me = textureSample(textureFront, samplerFront, uv).rgb;
-  if (me.g <= .1) {
+  
+  if (length((u.mouse - uv) / u.pixel) < 10.0) {
+    output = live;
+  } elseif (me.g <= .1) {
     if ((sum >= 2.9) && (sum <= 3.1)) {
       output = live;
     } elseif (me.b > .01) {
@@ -47,9 +46,6 @@ fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> 
     }
   }
 
-  if (length((m.mouse - uv) / pixel) < 10.0) {
-    output = live;
-  }
 
   return output;
 }

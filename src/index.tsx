@@ -52,35 +52,23 @@ const App: Component = () => {
             type: "uniform",
           },
         },
-        {
-          binding: 3,
-          visibility: GPUShaderStage.FRAGMENT,
-          buffer: {
-            type: "uniform",
-          },
-        },
       ],
     });
 
-    const resolution = device.createBuffer({
-      size: 2 * 4,
+    const uniforms = device.createBuffer({
+      size: 4 * 4,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    const resolutionView = new Float32Array(resolution.getMappedRange());
-    resolutionView.set([1 / c.width, 1 / c.height]);
-    resolution.unmap();
-
-    const mouse = device.createBuffer({
-      size: 2 * 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    const uniformView = new Float32Array(uniforms.getMappedRange());
+    uniformView.set([1 / c.width, 1 / c.height, 0, 0]);
+    uniforms.unmap();
 
     window.addEventListener("mousemove", (e) => {
       const rect = c.getBoundingClientRect();
       device.queue.writeBuffer(
-        mouse,
-        0,
+        uniforms,
+        2 * 4,
         new Float32Array([(e.clientX - rect.left) / c.width, (e.clientY - rect.top) / c.height])
       );
     });
@@ -90,8 +78,7 @@ const App: Component = () => {
       entries: [
         { binding: 0, resource: readTexture.createView() },
         { binding: 1, resource: device.createSampler() },
-        { binding: 2, resource: { buffer: resolution } },
-        { binding: 3, resource: { buffer: mouse } },
+        { binding: 2, resource: { buffer: uniforms } },
       ],
     });
 
