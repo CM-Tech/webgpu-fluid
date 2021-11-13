@@ -12,25 +12,17 @@ export const App: Component = () => {
     const device = await adapter.requestDevice();
 
     const presentationFormat = context.getPreferredFormat(adapter);
-    const textureFormat = "rgba8unorm";
     const size = [c.clientWidth, c.clientHeight];
     context.configure({
       device,
       format: presentationFormat,
       size,
+      usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    const writeTexture = device.createTexture({
-      size,
-      format: textureFormat,
-      dimension: "2d",
-      mipLevelCount: 1,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
-    });
-    const writeTextureView = writeTexture.createView();
     const readTexture = device.createTexture({
       size,
-      format: textureFormat,
+      format: presentationFormat,
       dimension: "2d",
       mipLevelCount: 1,
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
@@ -113,9 +105,6 @@ export const App: Component = () => {
         entryPoint: "frag",
         targets: [
           {
-            format: textureFormat,
-          },
-          {
             format: presentationFormat,
           },
         ],
@@ -139,31 +128,18 @@ export const App: Component = () => {
     const initialEncoder = device.createCommandEncoder();
     initialEncoder.copyBufferToTexture(
       { buffer, bytesPerRow: size[0] * 4 },
-      { texture: writeTexture },
+      { texture: readTexture },
       { width: size[0], height: size[1] }
     );
     device.queue.submit([initialEncoder.finish()]);
 
     const frame = () => {
       const commandEncoder = device.createCommandEncoder();
-
-      commandEncoder.copyTextureToTexture(
-        { texture: writeTexture },
-        { texture: readTexture },
-        {
-          width: size[0],
-          height: size[1],
-        }
-      );
+      const currentTexture = context.getCurrentTexture();
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
-            view: writeTextureView,
-            loadValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-          },
-          {
-            view: context.getCurrentTexture().createView(),
+            view: currentTexture.createView(),
             loadValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
             storeOp: "store",
           },
@@ -174,6 +150,14 @@ export const App: Component = () => {
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.endPass();
 
+      commandEncoder.copyTextureToTexture(
+        { texture: currentTexture },
+        { texture: readTexture },
+        {
+          width: size[0],
+          height: size[1],
+        }
+      );
       device.queue.submit([commandEncoder.finish()]);
 
       requestAnimationFrame(frame);

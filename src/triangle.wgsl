@@ -10,13 +10,8 @@
 [[binding(2), group(0)]] var<uniform> p : Pixel;
 [[binding(3), group(0)]] var<uniform> m : Mouse;
 
-struct FragOut {
-  [[location(0)]] color1 : vec4<f32>;
-  [[location(1)]] color2 : vec4<f32>;
-};
-
 [[stage(fragment)]]
-fn frag([[builtin(position)]] coord_in: vec4<f32>) -> FragOut {
+fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> {
   var pixel = p.pixel;
   var uv = coord_in.xy * pixel;
   
@@ -34,29 +29,28 @@ fn frag([[builtin(position)]] coord_in: vec4<f32>) -> FragOut {
   var dead = vec4<f32>(0., 0., 0., 1.);
   var blue = vec4<f32>(0., 0., 1., 1.);
 
-  var output: FragOut;
+  var output: vec4<f32>;
   var me = textureSample(textureFront, samplerFront, uv).rgb;
   if (me.g <= .1) {
     if ((sum >= 2.9) && (sum <= 3.1)) {
-      output.color1 = live;
+      output = live;
     } elseif (me.b > .01) {
-      output.color1 = vec4<f32>(0., 0., me.b - .006, 1.);
+      output = vec4<f32>(0., 0., me.b - .006, 1.);
     } else {
-      output.color1 = dead;
+      output = dead;
     }
   } else {
     if ((sum >= 1.9) && (sum <= 3.1)) {
-      output.color1 = live;
+      output = live;
     } else {
-      output.color1 = blue;
+      output = blue;
     }
   }
 
   if (length((m.mouse - uv) / pixel) < 10.0) {
-    output.color1 = live;
+    output = live;
   }
 
-  output.color2 = output.color1;
   return output;
 }
 
