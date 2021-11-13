@@ -1,5 +1,14 @@
+[[block]] struct Pixel {
+  pixel : vec2<f32>;
+};
+[[block]] struct Mouse {
+  mouse : vec2<f32>;
+};
+
 [[binding(0), group(0)]] var textureFront : texture_2d<f32>;
 [[binding(1), group(0)]] var samplerFront : sampler;
+[[binding(2), group(0)]] var<uniform> p : Pixel;
+[[binding(3), group(0)]] var<uniform> m : Mouse;
 
 struct FragOut {
   [[location(0)]] color1 : vec4<f32>;
@@ -8,7 +17,7 @@ struct FragOut {
 
 [[stage(fragment)]]
 fn frag([[builtin(position)]] coord_in: vec4<f32>) -> FragOut {
-  var pixel = vec2<f32>(1.0 / 320.0, 1.0 / 150.0);
+  var pixel = p.pixel;
   var uv = coord_in.xy * pixel;
   
   var sum = 0.0;
@@ -43,6 +52,9 @@ fn frag([[builtin(position)]] coord_in: vec4<f32>) -> FragOut {
     }
   }
 
+  if (length((m.mouse - uv) / pixel) < 10.0) {
+    output.color1 = live;
+  }
 
   output.color2 = output.color1;
   return output;
