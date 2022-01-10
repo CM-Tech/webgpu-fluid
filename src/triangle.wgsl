@@ -1,4 +1,4 @@
-[[block]] struct Uniforms {
+struct Uniforms {
   pixel : vec2<f32>;
   mouse : vec2<f32>;
 };
@@ -30,10 +30,10 @@ fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> 
   
   if (length((u.mouse - uv) / u.pixel) < 10.0) {
     output = live;
-  } elseif (me.g <= .1) {
+  } else if (me.g <= .1) {
     if ((sum >= 2.9) && (sum <= 3.1)) {
       output = live;
-    } elseif (me.b > .01) {
+    } else if (me.b > .01) {
       output = vec4<f32>(0., 0., me.b - .006, 1.);
     } else {
       output = dead;
@@ -45,7 +45,6 @@ fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> 
       output = blue;
     }
   }
-
 
   return output;
 }
