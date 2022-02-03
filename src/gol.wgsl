@@ -1,14 +1,14 @@
+@binding(0) @group(0) var samplerFront : sampler;
+
 struct Uniforms {
   pixel : vec2<f32>;
-  mouse : vec2<f32>;
 };
 
-[[binding(0), group(0)]] var textureFront : texture_2d<f32>;
-[[binding(1), group(0)]] var samplerFront : sampler;
-[[binding(2), group(0)]] var<uniform> u : Uniforms;
+@binding(0) @group(1) var textureFront : texture_2d<f32>;
+@binding(1) @group(1) var<uniform> u : Uniforms;
 
-[[stage(fragment)]]
-fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> {
+@stage(fragment)
+fn gol(@builtin(position) coord_in: vec4<f32>) -> @location(0) vec4<f32> {
   var uv = coord_in.xy * u.pixel;
   
   var sum = 0.0;
@@ -28,9 +28,7 @@ fn frag([[builtin(position)]] coord_in: vec4<f32>) -> [[location(0)]] vec4<f32> 
   var output: vec4<f32>;
   var me = textureSample(textureFront, samplerFront, uv).rgb;
   
-  if (length((u.mouse - uv) / u.pixel) < 10.0) {
-    output = live;
-  } else if (me.g <= .1) {
+  if (me.g <= .1) {
     if ((sum >= 2.9) && (sum <= 3.1)) {
       output = live;
     } else if (me.b > .01) {

@@ -2,9 +2,11 @@ import { createMemo, createEffect, createSignal, createRenderEffect, onMount, on
 import type { Component, Accessor } from "solid-js";
 import { render } from "solid-js/web";
 import { gpuCanvas, GPUContextType } from "./solid-gpu";
-import triangleWGSL from "./triangle.wgsl?raw";
+import golWGSL from "./gol.wgsl?raw";
 import vertWGSL from "./vert.wgsl?raw";
 import displayWGSL from "./display.wgsl?raw";
+import advectWGSL from "./advect.wgsl?raw";
+import splatWGSL from "./splat.wgsl?raw";
 import "./index.css";
 
 const DOWNSAMPLE = 2;
@@ -31,19 +33,19 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    const textureBytes = new Uint8Array(dwidth() * dheight() * 4);
-    for (let i = 1; i < textureBytes.length; i += 4) textureBytes[i] = Math.random() > 0.5 ? 255 : 0;
-
-    device.queue.writeTexture(
-      { texture: newTex },
-      textureBytes,
-      { bytesPerRow: dwidth() * 4 },
-      { width: dwidth(), height: dheight() }
-    );
     return newTex;
   };
-  const readTexture1 = createMemo<GPUTexture>(createTexture);
-  const readTexture2 = createMemo<GPUTexture>(createTexture);
+  let doubleFbo = () => {
+    let tex = [createMemo<GPUTexture>(createTexture), createMemo<GPUTexture>(createTexture)];
+    return tex;
+  };
+
+  const velocity = doubleFbo();
+  const density = doubleFbo();
+  const pressure = doubleFbo();
+  const divergenceTex = createMemo<GPUTexture>(createTexture);
+
+  const readTexture = doubleFbo();
 
   const uniforms = device.createBuffer({
     size: 4 * 4,
@@ -56,17 +58,37 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
+
+  const splatUniforms = device.createBuffer({
+    size: 8 * 4,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    mappedAtCreation: false,
+  });
+
+  device.queue.writeBuffer(splatUniforms, 4 * 4, new Float32Array([0.0,1.0,0.0,1.0]));
   const mousemove = (e: MouseEvent) => {
+    console.log("here")
     device.queue.writeBuffer(uniforms, 2 * 4, new Float32Array([e.clientX / width(), e.clientY / height()]));
+    device.queue.writeBuffer(splatUniforms, 2 * 4, new Float32Array([e.clientX >> DOWNSAMPLE, e.clientY >> DOWNSAMPLE]));
   };
   window.addEventListener("mousemove", mousemove);
   onCleanup(() => window.removeEventListener("mousemove", mousemove));
 
   createRenderEffect(() => {
     device.queue.writeBuffer(uniforms, 0 * 4, new Float32Array([1 / dwidth(), 1 / dheight()]));
+    device.queue.writeBuffer(splatUniforms, 0 * 4, new Float32Array([1 / dwidth(), 1 / dheight()]));
     device.queue.writeBuffer(displayUniforms, 0 * 4, new Float32Array([1 / width(), 1 / height()]));
   });
 
+  const layout0 = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: {},
+      },
+    ],
+  });
   const bglayout = device.createBindGroupLayout({
     entries: [
       {
@@ -77,66 +99,65 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
-        sampler: {},
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.FRAGMENT,
         buffer: { type: "uniform" },
       },
     ],
   });
 
+  const splatLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d" },
+      }
+    ]
+  });
   let sampler = device.createSampler({
     minFilter: "nearest",
     magFilter: "nearest",
   });
-  const bindingGroup1 = createMemo(() =>
+  const bg0 = device.createBindGroup({
+    layout: layout0,
+    entries: [{ binding: 0, resource: sampler }],
+  });
+  const bindingGroup = readTexture.map(x=>createMemo(() =>
     device.createBindGroup({
       layout: bglayout,
       entries: [
-        { binding: 0, resource: readTexture1().createView() },
-        { binding: 1, resource: sampler },
-        { binding: 2, resource: { buffer: uniforms } },
+        { binding: 0, resource: x().createView() },
+        { binding: 1, resource: { buffer: uniforms } },
       ],
     })
-  );
+  ));
 
-  const bindingGroup2 = createMemo(() =>
+  const displayBindingGroup = readTexture.map(x=>createMemo(() =>
     device.createBindGroup({
       layout: bglayout,
       entries: [
-        { binding: 0, resource: readTexture2().createView() },
-        { binding: 1, resource: sampler },
-        { binding: 2, resource: { buffer: uniforms } },
+        { binding: 0, resource: x().createView() },
+        { binding: 1, resource: { buffer: displayUniforms } },
       ],
     })
-  );
+  ));
 
-  const displayBindingGroup1 = createMemo(() =>
+  const splatBindingGroup = readTexture.map(x=>createMemo(() =>
     device.createBindGroup({
-      layout: bglayout,
+      layout: splatLayout,
       entries: [
-        { binding: 0, resource: readTexture1().createView() },
-        { binding: 1, resource: sampler },
-        { binding: 2, resource: { buffer: displayUniforms } },
+        { binding: 0, resource: { buffer: splatUniforms } },
+        { binding: 1, resource: x().createView() },
       ],
     })
-  );
-
-  const displayBindingGroup2 = createMemo(() =>
-    device.createBindGroup({
-      layout: bglayout,
-      entries: [
-        { binding: 0, resource: readTexture2().createView() },
-        { binding: 1, resource: sampler },
-        { binding: 2, resource: { buffer: displayUniforms } },
-      ],
-    })
-  );
+  ));
 
   const triangleShader = device.createShaderModule({
-    code: triangleWGSL,
+    code: golWGSL,
   });
   const vertShader = device.createShaderModule({
     code: vertWGSL,
@@ -144,6 +165,30 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const displayShader = device.createShaderModule({
     code: displayWGSL,
   });
+  const advectShader = device.createShaderModule({
+    code: advectWGSL,
+  });
+  const splatShader = device.createShaderModule({
+    code: splatWGSL,
+  });
+
+  const splatPipeline = device.createRenderPipeline({
+    vertex: {
+      module: vertShader,
+      entryPoint: "vert",
+    },
+    fragment: {
+      module: splatShader,
+      entryPoint: "splat",
+      targets: [{format: presentationFormat}]
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, splatLayout] }),
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    }
+  });
+
   const pipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -151,14 +196,10 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     },
     fragment: {
       module: triangleShader,
-      entryPoint: "frag",
-      targets: [
-        {
-          format: presentationFormat,
-        },
-      ],
+      entryPoint: "gol",
+      targets: [{format: presentationFormat}],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [bglayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, bglayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -173,13 +214,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: displayShader,
       entryPoint: "display",
-      targets: [
-        {
-          format: presentationFormat,
-        },
-      ],
+      targets: [{format: presentationFormat}],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [bglayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, bglayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -191,22 +228,53 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const frame = () => {
     const commandEncoder = device.createCommandEncoder();
 
+    {
     const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
-          view: ((t & 1) == 0 ? readTexture2 : readTexture1)().createView(),
+          view: (readTexture[1])().createView(),
           loadValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           storeOp: "store",
         },
       ],
     });
     passEncoder.setPipeline(pipeline);
-    passEncoder.setBindGroup(0, ((t & 1) == 0 ? bindingGroup1 : bindingGroup2)());
+    passEncoder.setBindGroup(0, bg0);
+    passEncoder.setBindGroup(1, bindingGroup[0]());
     passEncoder.draw(4, 1, 0, 0);
     passEncoder.endPass();
 
+    readTexture.reverse();
+    bindingGroup.reverse();
+    splatBindingGroup.reverse();
+    displayBindingGroup.reverse();
+  }
+
+{
+    const passEncoder = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: (readTexture[1])().createView(),
+          loadValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          storeOp: "store",
+        },
+      ],
+    });
+    passEncoder.setPipeline(splatPipeline);
+    passEncoder.setBindGroup(0, bg0);
+    passEncoder.setBindGroup(1, splatBindingGroup[0]());
+    passEncoder.draw(4, 1, 0, 0);
+    passEncoder.endPass();
+
+    readTexture.reverse();
+    bindingGroup.reverse();
+    splatBindingGroup.reverse();
+    displayBindingGroup.reverse();
+  }
+
+  {
     const currentTexture = context.getCurrentTexture();
-    const passEncoder2 = commandEncoder.beginRenderPass({
+    const passEncoder = commandEncoder.beginRenderPass({
       colorAttachments: [
         {
           view: currentTexture.createView(),
@@ -215,10 +283,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         },
       ],
     });
-    passEncoder2.setPipeline(displayPipeline);
-    passEncoder2.setBindGroup(0, ((t & 1) == 0 ? displayBindingGroup2 : displayBindingGroup1)());
-    passEncoder2.draw(4, 1, 0, 0);
-    passEncoder2.endPass();
+    passEncoder.setPipeline(displayPipeline);
+    passEncoder.setBindGroup(0, bg0);
+    passEncoder.setBindGroup(1, displayBindingGroup[0]());
+    passEncoder.draw(4, 1, 0, 0);
+    passEncoder.endPass();
+  }
 
     device.queue.submit([commandEncoder.finish()]);
 

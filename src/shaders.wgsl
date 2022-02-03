@@ -9,26 +9,13 @@ struct Pixel {
   pixel : vec2<f32>;
 };
 
-[[binding(0), group(0)]] var samplerFront : sampler;
-[[binding(1), group(0)]] var<uniform> u : Uniforms;
-
-struct Uniforms {
-  color : vec4<f32>;
-};
-[[binding(0), group(1)]] var<uniform> u : Uniforms;
-[[binding(0), group(1)]] var velocity : texture_2d<f32>;
-[[binding(1), group(1)]] var x : texture_2d<f32>;
-
-fn advect() -> [[location(0)]] vec4<f32> {
-  var pos = coords - timestep * texelSize * texture2D(velocity, coords).xy;
-  var start = texture2D(x, pos);
-  return (color - start) * (1.0 - dissipation) + start;
-}
+@binding(0) @group(0) var samplerFront : sampler;
+@binding(1) @group(0) var<uniform> u : Uniforms;
 
 uniform sampler2D pressure;
 uniform float dissipation;
 
-fn clear() -> [[location(0)]] vec4<f32> {
+fn clear() -> @location(0) vec4<f32> {
     return dissipation * texture2D(pressure, coords);
 }
 
@@ -37,7 +24,7 @@ uniform sampler2D density;
 uniform sampler2D velocity;
 uniform sampler2D image;
 
-fn display() -> [[location(0)]] vec4<f32> {
+fn display() -> @location(0) vec4<f32> {
     var velOffset = 0.1 * texture2D(velocity, coords).xy * texelSize;
     var offset = texelSize.x > 1.0 / 800.0 ? -12.0 : -24.0;
     var size = texelSize.x > 1.0 / 800.0 ? 64.0 : 80.0;
@@ -56,7 +43,7 @@ fn sampleVelocity(uv: vec2<f32>) -> vec2<f32> {
   return mult * texture2D(velocity, clamp(uv, 0.0, 1.0)).xy;
 }
 
-fn divergence() -> [[location(0)]] vec4<f32> {
+fn divergence() -> @location(0) vec4<f32> {
   var L = sampleVelocity(coords - vec2<f32>(texelSize.x, 0.0)).x;
   var R = sampleVelocity(coords + vec2<f32>(texelSize.x, 0.0)).x;
   var T = sampleVelocity(coords + vec2<f32>(0.0, texelSize.y)).y;
@@ -70,7 +57,7 @@ uniform vec2 texelSize;
 uniform sampler2D pressure;
 uniform sampler2D velocity;
 
-fn gradientSubtract() -> [[location(0)]] vec4<f32> {
+fn gradientSubtract() -> @location(0) vec4<f32> {
   var pL = texture2D(pressure, coords - vec2(texelSize.x, 0.0)).x;
   var pR = texture2D(pressure, coords + vec2(texelSize.x, 0.0)).x;
   var pB = texture2D(pressure, coords - vec2(0.0, texelSize.y)).x;
@@ -83,7 +70,7 @@ uniform vec2 texelSize;
 uniform sampler2D pressure;
 uniform sampler2D divergence;
 
-fn jacobi() -> [[location(0)]] vec4<f32> {
+fn jacobi() -> @location(0) vec4<f32> {
   // left, right, bottom, and top pressure samples
   var L = texture2D(pressure, coords - vec2<f32>(texelSize.x, 0.0)).x;
   var R = texture2D(pressure, coords + vec2<f32>(texelSize.x, 0.0)).x;
@@ -97,20 +84,6 @@ fn jacobi() -> [[location(0)]] vec4<f32> {
   return vec4<f32>(0.25 * (L + R + B + T - bC), 0, 0, 1);
 }
 
-uniform sampler2D uTarget;
-uniform vec2 texelSize;
-uniform vec3 color;
-uniform vec2 point;
-uniform float radius;
-
-fn splat() -> [[location(0)]] vec4<f32> {
-    vec2 p = coords - point.xy;
-    p.x *= texelSize.x/texelSize.y;
-    float strength = exp(-dot(p, p) / radius);
-    vec3 base = texture2D(uTarget, coords).xyz;
-    return vec4(base * (1.0 - strength) + strength * color, 1.0);
-}
-
 uniform sampler2D vorticity;
 uniform sampler2D velocity;
 uniform vec2 texelSize;
@@ -119,7 +92,7 @@ uniform float curl;
 
 const EPSILON: float = 2.4414e-4; // 2^-12
 
-fn vortForce() -> [[location(0)]] vec4<f32> {
+fn vortForce() -> @location(0) vec4<f32> {
   var L = texture2D(vorticity, coords - vec2(texelSize.x, 0.0)).y;
   var R = texture2D(vorticity, coords + vec2(texelSize.x, 0.0)).y;
   var B = texture2D(vorticity, coords - vec2(0.0, texelSize.y)).x;
@@ -137,7 +110,7 @@ fn vortForce() -> [[location(0)]] vec4<f32> {
 uniform sampler2D velocity;
 uniform vec2 texelSize;
 
-fn vorticity() -> [[location(0)]] vec4<f32> {
+fn vorticity() -> @location(0) vec4<f32> {
   var L = texture2D(velocity, coords - vec2<f32>(texelSize.x, 0.0)).y;
   var R = texture2D(velocity, coords + vec2<f32>(texelSize.x, 0.0)).y;
   var B = texture2D(velocity, coords - vec2<f32>(0.0, texelSize.y)).x;
