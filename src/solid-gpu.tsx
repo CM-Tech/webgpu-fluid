@@ -17,7 +17,7 @@ export const gpuCanvas = (props: { width: number; height: number }, fn: (value: 
     if (!adapter) throw new Error("No GPU support");
 
     let device = await adapter.requestDevice();
-    let presentationFormat = context.getPreferredFormat(adapter);
+    let presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
     runWithOwner(owner, () =>
       fn({

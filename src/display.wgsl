@@ -1,7 +1,7 @@
 @binding(0) @group(0) var samplerFront : sampler;
 
 struct Uniforms {
-  pixel : vec2<f32>;
+  pixel : vec2<f32>,
 };
 
 @binding(0) @group(1) var textureFront : texture_2d<f32>;
