@@ -59,7 +59,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   let doubleFbo = (format?: GPUTextureFormat) => createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
 
   const density = doubleFbo();
-  const velocity = doubleFbo(); //"rgba32float");
+  const velocity = doubleFbo("rgba32float");
   const pressure = doubleFbo();
   const divergenceTex = createMemo<GPUTexture>(createTexture());
 
@@ -194,7 +194,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        sampler: {},
+        sampler: {
+          type: "non-filtering"
+        },
       },
     ],
   });
@@ -222,7 +224,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
       {
         binding: 2,
@@ -247,7 +249,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 2,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d"}, //, sampleType: "float" },
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
     ],
   });
@@ -291,7 +293,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: splatShader,
       entryPoint: "splat",
-      targets: [{ format: presentationFormat }, { format: presentationFormat }], //"rgba32float" }],
+      targets: [{ format: presentationFormat }, { format: "rgba32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, splatLayout, splatTouchLayout] }),
     primitive: {
