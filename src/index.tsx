@@ -85,11 +85,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        sampler: { type: "non-filtering" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
         buffer: { type: "uniform" },
       },
     ],
@@ -279,7 +274,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     });
 
   const displayUniforms = device.createBuffer({
-    size: 2 << 2,
+    size: 1 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
@@ -394,26 +389,20 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   });
 
   createRenderEffect(() => {
-    device.queue.writeBuffer(uniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
-    device.queue.writeBuffer(displayUniforms, 0 << 2, new Float32Array([1 / width(), 1 / height()]));
+    device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([dwidth(), dheight()]));
+    device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([DOWNSAMPLE]));
   });
 
-  const sampler = device.createSampler({
-    minFilter: "nearest",
-    magFilter: "nearest",
-  });
   const mainBindGroup = device.createBindGroup({
     layout: mainLayout,
     entries: [
-      { binding: 0, resource: sampler },
-      { binding: 1, resource: { buffer: uniforms } },
+      { binding: 0, resource: { buffer: uniforms } },
     ],
   });
   const displayBindGroup = device.createBindGroup({
     layout: mainLayout,
     entries: [
-      { binding: 0, resource: sampler },
-      { binding: 1, resource: { buffer: displayUniforms } },
+      { binding: 0, resource: { buffer: displayUniforms } },
     ],
   });
   const divergenceReadGroup = device.createBindGroup({

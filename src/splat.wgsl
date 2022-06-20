@@ -1,8 +1,7 @@
 struct Uniforms {
-    pixel: vec2<f32>,
+    resolution: vec2<i32>,
 };
-@group(0) @binding(0) var samplerFront : sampler;
-@group(0) @binding(1) var<uniform> u : Uniforms;
+@group(0) @binding(0) var<uniform> u : Uniforms;
 
 @group(1) @binding(0) var dye : texture_2d<f32>;
 @group(1) @binding(1) var velocity : texture_2d<f32>;
@@ -53,11 +52,11 @@ fn closestPoint(start: vec2<f32>, end: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
 
 @fragment
 fn splat(@builtin(position) coords: vec4<f32>) -> Output {
-    var uv = coords.xy * u.pixel;
+    var coord = vec2<i32>(coords.xy);
     var p = coords.xy - closestPoint(touch.point, touch.oldPoint, coords.xy);
     var strength = exp(-dot(p, p) / radius);
-    var dyeBase = textureSample(dye, samplerFront, uv).rgb;
-    var velocityBase = textureSample(velocity, samplerFront, uv).xy;
+    var dyeBase = textureLoad(dye, coord, 0).rgb;
+    var velocityBase = textureLoad(velocity, coord, 0).xy;
     var out: Output;
     out.dye = vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
     out.velocity = vec4<f32>(velocityBase + strength * touch.velocity, 0., 1.0);
