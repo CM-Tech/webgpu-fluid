@@ -39,6 +39,187 @@ type VelTouch = {
 };
 type GPUProgram = (props: { width: Accessor<number>; height: Accessor<number> } & GPUContextType) => void;
 const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, device }) => {
+  const vertShader = device.createShaderModule({
+    code: vertWGSL,
+  });
+  const displayShader = device.createShaderModule({
+    code: displayWGSL,
+  });
+  const advectShader = device.createShaderModule({
+    code: advectWGSL,
+  });
+  const clearShader = device.createShaderModule({
+    code: clearWGSL,
+  });
+  const divergenceShader = device.createShaderModule({
+    code: divergenceWGSL,
+  });
+  const jacobiShader = device.createShaderModule({
+    code: jacobiWGSL,
+  });
+  const gradientShader = device.createShaderModule({
+    code: gradientWGSL,
+  });
+  const vorticityShader = device.createShaderModule({
+    code: vorticityWGSL,
+  });
+  const splatShader = device.createShaderModule({
+    code: splatWGSL,
+  });
+
+  const mainLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: { type: "non-filtering" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+    ],
+  });
+  const displayLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d" },
+      },
+    ],
+  });
+  const dyeVelocityLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
+  const floatLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
+  const gradientLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
+  const splatTouchLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+    ],
+  });
+
+  const defaultPipeline = {
+    vertex: {
+      module: vertShader,
+      entryPoint: "vert",
+    },
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    },
+  } as const;
+  const splatPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: splatShader,
+      entryPoint: "splat",
+      targets: [{ format: presentationFormat }, { format: "rg32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout, splatTouchLayout] }),
+  });
+  const advectPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: advectShader,
+      entryPoint: "advect",
+      targets: [{ format: presentationFormat }, { format: "rg32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
+  });
+  const clearPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: clearShader,
+      entryPoint: "clear",
+      targets: [{ format: "r32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
+  });
+  const divergencePipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: divergenceShader,
+      entryPoint: "divergence",
+      targets: [{ format: "r32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
+  });
+  const jacobiPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: jacobiShader,
+      entryPoint: "jacobi",
+      targets: [{ format: "r32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout, floatLayout] }),
+  });
+  const gradientPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: gradientShader,
+      entryPoint: "gradient",
+      targets: [{ format: "rg32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, gradientLayout] }),
+  });
+  const vorticityPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: vorticityShader,
+      entryPoint: "vorticity",
+      targets: [{ format: "rg32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
+  });
+  const displayPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: displayShader,
+      entryPoint: "display",
+      targets: [{ format: presentationFormat }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
+  });
+
   const dwidth = () => width() >> DOWNSAMPLE;
   const dheight = () => height() >> DOWNSAMPLE;
   createRenderEffect(() => {
@@ -62,6 +243,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
     return newTex;
   };
+
   const doubleFbo = (format?: GPUTextureFormat) =>
     createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
 
@@ -169,7 +351,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     },
     { passive: false }
   );
-
   createEventListener(
     window,
     "touchmove",
@@ -180,7 +361,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     },
     { passive: false }
   );
-
   createEventListener(window, "touchend", ({ changedTouches }: TouchEvent) => {
     destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
     for (let i = 0; i < changedTouches.length; i++) destroyTouch(changedTouches[i]);
@@ -189,76 +369,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   createRenderEffect(() => {
     device.queue.writeBuffer(uniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
     device.queue.writeBuffer(displayUniforms, 0 << 2, new Float32Array([1 / width(), 1 / height()]));
-  });
-
-  const mainLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        sampler: { type: "non-filtering" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-    ],
-  });
-  const displayLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
-      },
-    ],
-  });
-  const dyeVelocityLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },
-    ],
-  });
-  const floatLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },
-    ],
-  });
-  const gradientLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },
-    ],
-  });
-  const splatTouchLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-    ],
   });
 
   const sampler = device.createSampler({
@@ -279,116 +389,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       { binding: 1, resource: { buffer: displayUniforms } },
     ],
   });
-
-  const vertShader = device.createShaderModule({
-    code: vertWGSL,
-  });
-  const displayShader = device.createShaderModule({
-    code: displayWGSL,
-  });
-  const advectShader = device.createShaderModule({
-    code: advectWGSL,
-  });
-  const clearShader = device.createShaderModule({
-    code: clearWGSL,
-  });
-  const divergenceShader = device.createShaderModule({
-    code: divergenceWGSL,
-  });
-  const jacobiShader = device.createShaderModule({
-    code: jacobiWGSL,
-  });
-  const gradientShader = device.createShaderModule({
-    code: gradientWGSL,
-  });
-  const vorticityShader = device.createShaderModule({
-    code: vorticityWGSL,
-  });
-  const splatShader = device.createShaderModule({
-    code: splatWGSL,
-  });
-
-  const defaultPipeline = {
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
-  } as const;
-  const splatPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: splatShader,
-      entryPoint: "splat",
-      targets: [{ format: presentationFormat }, { format: "rg32float" }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout, splatTouchLayout] }),
-  });
-  const advectPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: advectShader,
-      entryPoint: "advect",
-      targets: [{ format: presentationFormat }, { format: "rg32float" }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
-  });
-  const clearPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: clearShader,
-      entryPoint: "clear",
-      targets: [{ format: "r32float" }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
-  });
-  const divergencePipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: divergenceShader,
-      entryPoint: "divergence",
-      targets: [{ format: "r32float" }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
-  });
-  const jacobiPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: jacobiShader,
-      entryPoint: "jacobi",
-      targets: [{ format: "r32float" }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout, floatLayout] }),
-  });
-  const gradientPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: gradientShader,
-      entryPoint: "gradient",
-      targets: [{ format: "rg32float" }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, gradientLayout] }),
-  });
-  const vorticityPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: vorticityShader,
-      entryPoint: "vorticity",
-      targets: [{ format: "rg32float" }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
-  });
-  const displayPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: displayShader,
-      entryPoint: "display",
-      targets: [{ format: presentationFormat }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
+  const divergenceReadGroup = device.createBindGroup({
+    layout: floatLayout,
+    entries: [{ binding: 0, resource: divergenceTex().createView() }],
   });
 
   let animation: number;
@@ -535,13 +538,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       });
       passEncoder.setPipeline(jacobiPipeline);
       passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(
-        1,
-        device.createBindGroup({
-          layout: floatLayout,
-          entries: [{ binding: 0, resource: divergenceTex().createView() }],
-        })
-      );
+      passEncoder.setBindGroup(1, divergenceReadGroup);
       passEncoder.setBindGroup(
         2,
         device.createBindGroup({
