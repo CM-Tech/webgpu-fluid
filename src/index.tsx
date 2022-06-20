@@ -27,7 +27,7 @@ const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
   };
 };
 
-const DOWNSAMPLE = 2;
+const DOWNSAMPLE = 1;
 type VelTouch = {
   identifier: number;
   time: number;
@@ -239,7 +239,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       },
     ],
   });
-  const advectG1layout = device.createBindGroupLayout({
+  const advectLayout = device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -418,7 +418,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "advect",
       targets: [{ format: presentationFormat }, { format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, advectG1layout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, advectLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -578,7 +578,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
-          layout: advectG1layout,
+          layout: advectLayout,
           entries: [
             { binding: 0, resource: { buffer: advectUniforms } },
             { binding: 1, resource: velocity.read.createView() },
@@ -649,7 +649,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       passEncoder.end();
     }
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 25; i++) {
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
