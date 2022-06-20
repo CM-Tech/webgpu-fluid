@@ -7,7 +7,7 @@ struct Uniforms {
 @binding(0) @group(1) var textureFront : texture_2d<f32>;
 @binding(1) @group(1) var<uniform> u : Uniforms;
 
-@stage(fragment)
+@fragment
 fn display(@builtin(position) coord_in: vec4<f32>) -> @location(0) vec4<f32> {
   var uv = coord_in.xy * u.pixel;
   return textureSample(textureFront, samplerFront, uv);

@@ -20,7 +20,7 @@ fn clear() -> @location(0) vec4<f32> {
 }
 
 uniform vec2 texelSize;
-uniform sampler2D density;
+uniform sampler2D dye;
 uniform sampler2D velocity;
 uniform sampler2D image;
 
@@ -30,7 +30,7 @@ fn display() -> @location(0) vec4<f32> {
     var size = texelSize.x > 1.0 / 800.0 ? 64.0 : 80.0;
     var pos = (vec2<f32>(offset) + vec2<f32>(coords.x, 1.0 - coords.y) / texelSize) / size;
     var logo = texture2D(image, pos + velOffset);
-    return vec4<f32>(texture2D(density, coords).rgb * (1.0 - logo.a) + logo.rgb * logo.a, 1.0);
+    return vec4<f32>(texture2D(dye, coords).rgb * (1.0 - logo.a) + logo.rgb * logo.a, 1.0);
 }
 
 uniform vec2 texelSize;

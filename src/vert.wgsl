@@ -1,5 +1,5 @@
 
-@stage(vertex)
+@vertex
 fn vert(@builtin(vertex_index) VertexIndex : u32)
      -> @builtin(position) vec4<f32> {
   var pos = array<vec2<f32>, 4>(

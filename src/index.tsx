@@ -5,7 +5,10 @@ import { gpuCanvas, GPUContextType } from "./solid-gpu";
 import vertWGSL from "./vert.wgsl?raw";
 import displayWGSL from "./display.wgsl?raw";
 import advectWGSL from "./advect.wgsl?raw";
+import divergenceWGSL from "./divergence.wgsl?raw";
+import jacobiWGSL from "./jacobi.wgsl?raw";
 import splatWGSL from "./splat.wgsl?raw";
+import { createEventListener } from "@solid-primitives/event-listener";
 import "./index.css";
 
 const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
@@ -56,14 +59,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
     return newTex;
   };
-  let doubleFbo = (format?: GPUTextureFormat) => createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
+  let doubleFbo = (format?: GPUTextureFormat) =>
+    createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
 
-  const density = doubleFbo();
+  const dye = doubleFbo();
   const velocity = doubleFbo("rgba32float");
   const pressure = doubleFbo();
-  const divergenceTex = createMemo<GPUTexture>(createTexture());
+  const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
 
-  console.log(presentationFormat)
   const uniforms = device.createBuffer({
     size: 4 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -78,7 +81,13 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     });
 
   const advectUniforms = device.createBuffer({
-    size: 7 << 2,
+    size: 8 << 2,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    mappedAtCreation: false,
+  });
+
+  const divergenceUniforms = device.createBuffer({
+    size: 2 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
@@ -96,7 +105,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   });
 
   device.queue.writeBuffer(splatUniforms, 4 << 2, new Float32Array([0.0, 1.0, 0.0, 1.0]));
-  device.queue.writeBuffer(advectUniforms, 6 << 2, new Float32Array([0.9]));
+  device.queue.writeBuffer(advectUniforms, 6 << 2, new Float32Array([0.99, 0.9]));
 
   let touches: VelTouch[] = [];
   const createTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
@@ -123,7 +132,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       createTouch(touch);
       return;
     }
-    m.previous.time= m.time;
+    m.previous.time = m.time;
     m.previous.x = m.x;
     m.previous.y = m.y;
     m.time = Date.now();
@@ -147,45 +156,59 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     m.uniform.destroy();
   };
 
-  const mousemove = (e: MouseEvent) => {
+  createEventListener(window, "mousemove", (e: MouseEvent) => {
     const changedTouches = [{ clientX: e.clientX, clientY: e.clientY, identifier: -1 }];
     for (let i = 0; i < changedTouches.length; i++) moveTouch(changedTouches[i]);
-  };
-  window.addEventListener("mousemove", mousemove);
-  onCleanup(() => window.removeEventListener("mousemove", mousemove));
+  });
 
-  const mousedown = (e: MouseEvent) => {
+  createEventListener(window, "mousedown", (e: MouseEvent) => {
     const changedTouches = [{ clientX: e.clientX, clientY: e.clientY, identifier: -1 }];
     for (let i = 0; i < changedTouches.length; i++) {
       destroyTouch(changedTouches[i]);
       moveTouch(changedTouches[i]);
     }
-  };
-  window.addEventListener("mousedown", mousedown);
-  onCleanup(() => window.removeEventListener("mousedown", mousedown));
+  });
 
-  const ontouchstart = ({ changedTouches }: TouchEvent) => {
-    for (let i = 0; i < changedTouches.length; i++) createTouch(changedTouches[i]);
-  };
-  window.addEventListener("touchstart", ontouchstart);
-  onCleanup(() => window.removeEventListener("touchstart", ontouchstart));
+  createEventListener(
+    window,
+    "wheel",
+    (e) => {
+      e.preventDefault();
+    },
+    { passive: false }
+  );
+  createEventListener(
+    window,
+    "touchstart",
+    (e: TouchEvent) => {
+      e.preventDefault();
+      destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
+      for (let i = 0; i < e.changedTouches.length; i++) createTouch(e.changedTouches[i]);
+    },
+    { passive: false }
+  );
 
-  const touchmove = ({ changedTouches }: TouchEvent) => {
-    for (let i = 0; i < changedTouches.length; i++) moveTouch(changedTouches[i]);
-  };
-  window.addEventListener("touchmove", touchmove);
-  onCleanup(() => window.removeEventListener("touchmove", touchmove));
+  createEventListener(
+    window,
+    "touchmove",
+    (e: TouchEvent) => {
+      e.preventDefault();
+      destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
+      for (let i = 0; i < e.changedTouches.length; i++) moveTouch(e.changedTouches[i]);
+    },
+    { passive: false }
+  );
 
-  const touchend = ({ changedTouches }: TouchEvent) => {
+  createEventListener(window, "touchend", ({ changedTouches }: TouchEvent) => {
+    destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
     for (let i = 0; i < changedTouches.length; i++) destroyTouch(changedTouches[i]);
-  };
-  window.addEventListener("touchend", touchend);
-  onCleanup(() => window.removeEventListener("touchend", touchend));
+  });
 
   createRenderEffect(() => {
     device.queue.writeBuffer(uniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
     device.queue.writeBuffer(splatUniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
     device.queue.writeBuffer(displayUniforms, 0 << 2, new Float32Array([1 / width(), 1 / height()]));
+    device.queue.writeBuffer(divergenceUniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
     device.queue.writeBuffer(advectUniforms, 4 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
   });
 
@@ -195,7 +218,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
         sampler: {
-          type: "non-filtering"
+          type: "non-filtering",
         },
       },
     ],
@@ -233,7 +256,43 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       },
     ],
   });
-
+  const divergenceLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ]
+  });
+  const jacobiLayout0 = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d" },
+      },
+    ],
+  });
+  const jacobiLayout1 = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d" },
+      },
+    ]
+  });
   const splatLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -281,6 +340,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const advectShader = device.createShaderModule({
     code: advectWGSL,
   });
+  const divergenceShader = device.createShaderModule({
+    code: divergenceWGSL,
+  });
+  const jacobiShader = device.createShaderModule({
+    code: jacobiWGSL,
+  });
   const splatShader = device.createShaderModule({
     code: splatWGSL,
   });
@@ -310,9 +375,43 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: advectShader,
       entryPoint: "advect",
-      targets: [{ format: presentationFormat }],
+      targets: [{ format: presentationFormat }, { format: "rgba32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, advectG1layout] }),
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    },
+  });
+
+  const divergencePipeline = device.createRenderPipeline({
+    vertex: {
+      module: vertShader,
+      entryPoint: "vert",
+    },
+    fragment: {
+      module: divergenceShader,
+      entryPoint: "divergence",
+      targets: [{ format: "r32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, divergenceLayout] }),
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    },
+  });
+
+  const jacobiPipeline = device.createRenderPipeline({
+    vertex: {
+      module: vertShader,
+      entryPoint: "vert",
+    },
+    fragment: {
+      module: jacobiShader,
+      entryPoint: "jacobi",
+      targets: [{ format: "rgba32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, jacobiLayout0, jacobiLayout1] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -337,7 +436,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   });
 
   let animation: number;
-  let t = 0;
   const frame = () => {
     const commandEncoder = device.createCommandEncoder();
 
@@ -346,14 +444,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         layout: splatLayout,
         entries: [
           { binding: 0, resource: { buffer: splatUniforms } },
-          { binding: 1, resource: density.read.createView() },
+          { binding: 1, resource: dye.read.createView() },
           { binding: 2, resource: velocity.read.createView() },
         ],
       });
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
-            view: density.write.createView(),
+            view: dye.write.createView(),
             clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
             storeOp: "store",
             loadOp: "clear",
@@ -379,7 +477,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
 
-      density.swap();
+      dye.swap();
       velocity.swap();
     }
 
@@ -387,11 +485,17 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
-            view: density.write.createView(),
+            view: dye.write.createView(),
             clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
             storeOp: "store",
             loadOp: "clear",
           },
+          {
+            view: velocity.write.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          }
         ],
       });
       passEncoder.setPipeline(advectPipeline);
@@ -403,14 +507,42 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
           entries: [
             { binding: 0, resource: { buffer: advectUniforms } },
             { binding: 1, resource: velocity.read.createView() },
-            { binding: 2, resource: density.read.createView() },
+            { binding: 2, resource: dye.read.createView() },
           ],
         })
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
 
-      density.swap();
+      dye.swap();
+      velocity.swap();
+    }
+
+    {
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: divergenceTex().createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          },
+        ],
+      });
+      passEncoder.setPipeline(divergencePipeline);
+      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(
+        1,
+        device.createBindGroup({
+          layout: divergenceLayout,
+          entries: [
+            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 1, resource: velocity.read.createView() },
+          ],
+        })
+      );
+      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.end();
     }
 
     {
@@ -432,7 +564,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         device.createBindGroup({
           layout: bglayout,
           entries: [
-            { binding: 0, resource: density.read.createView() },
+            { binding: 0, resource: dye.read.createView() },
             { binding: 1, resource: { buffer: displayUniforms } },
           ],
         })
@@ -443,7 +575,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
     device.queue.submit([commandEncoder.finish()]);
 
-    t++;
     animation = requestAnimationFrame(frame);
   };
 
