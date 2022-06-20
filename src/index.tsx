@@ -720,6 +720,35 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     }
 
     {
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: velocity.write.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          },
+        ],
+      });
+      passEncoder.setPipeline(vorticityPipeline);
+      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(
+        1,
+        device.createBindGroup({
+          layout: vorticityLayout,
+          entries: [
+            { binding: 0, resource: { buffer: uniforms } },
+            { binding: 1, resource: velocity.read.createView() },
+          ]
+        })
+      );
+      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.end();
+
+      velocity.swap();
+    }
+
+    {
       const currentTexture = context.getCurrentTexture();
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
