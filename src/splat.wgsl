@@ -22,42 +22,44 @@ struct Output {
     @location(0) dye: vec4<f32>,
     @location(1) velocity: vec4<f32>,
 }
-fn closestPoint(start:vec2<f32> , end:vec2<f32> ,  c:vec2<f32> ) -> vec2<f32> {
-  // Break ab appart into components a and b
-  var a = start;
-  var b = end;
-  if(dot(b - a, b - a) < 0.000001 ){
-    return a;
-  }
 
-  // Project c onto ab, computing the 
-  // paramaterized position d(t) = a + t * (b - a)
-  var t = dot(c - a,b - a) / dot(b - a, b - a);
+fn closestPoint(start: vec2<f32>, end: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
+    // Break ab appart into components a and b
+    var a = start;
+    var b = end;
+    if (dot(b - a, b - a) < 0.000001) {
+        return a;
+    }
 
-  // Clamp T to a 0-1 range. If t was < 0 or > 1
-  // then the closest point was outside the line!
-  if(t <0.0 ){
-    t=0.0;
-  }
-  if( t> 1.0){
-    t=1.0;
-  }
+    // Project c onto ab, computing the 
+    // paramaterized position d(t) = a + t * (b - a)
+    var t = dot(c - a, b - a) / dot(b - a, b - a);
 
-  // Compute the projected position from the clamped t
-  var d = vec2<f32>(a + t * (b- a));
+    // Clamp T to a 0-1 range. If t was < 0 or > 1
+    // then the closest point was outside the line!
+    if (t < 0.0) {
+        t = 0.0;
+    }
+    if (t > 1.0) {
+        t = 1.0;
+    }
 
-  // Return result
-  return d;
+    // Compute the projected position from the clamped t
+    var d = vec2<f32>(a + t * (b - a));
+
+    // Return result
+    return d;
 }
+
 @fragment
 fn splat(@builtin(position) coords: vec4<f32>) -> Output {
     var uv = coords.xy * u.pixel;
-    var p = coords.xy - closestPoint(touch.point,touch.oldPoint, coords.xy);
+    var p = coords.xy - closestPoint(touch.point, touch.oldPoint, coords.xy);
     var strength = exp(-dot(p, p) / radius);
     var dyeBase = textureSample(dye, samplerFront, uv).rgb;
     var velocityBase = textureSample(velocity, samplerFront, uv).xy;
     var out: Output;
     out.dye = vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
-    out.velocity = vec4<f32>(velocityBase * (1.0 - strength) + strength * touch.velocity, 0., 1.0);
+    out.velocity = vec4<f32>(velocityBase + strength * touch.velocity, 0., 1.0);
     return out;
 }

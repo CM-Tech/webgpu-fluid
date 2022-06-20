@@ -7,7 +7,7 @@ struct Uniforms {
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 
 let EPSILON = 2.4414e-4; // 2^-12
-let timestep = 0.0016666;
+let timestep = 0.016666;
 let curlAmount = 12.0;
 
 fn curl(coords: vec2<f32>) -> f32 {

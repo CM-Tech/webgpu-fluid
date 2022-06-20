@@ -288,17 +288,28 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const createTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
     const m = {
       identifier: touch.identifier,
-      x: touch.clientX,
-      y: touch.clientY,
+      x: touch.clientX >> DOWNSAMPLE,
+      y: touch.clientY >> DOWNSAMPLE,
       time: Date.now(),
-      previous: { time: Date.now(), x: touch.clientX, y: touch.clientY },
+      previous: { time: Date.now(), x: touch.clientX >> DOWNSAMPLE, y: touch.clientY >> DOWNSAMPLE },
       uniform: makeUniformsPerTouch(),
     };
 
     device.queue.writeBuffer(
       m.uniform,
       0 << 2,
-      new Float32Array([Math.random()*2+0.5, Math.random()*2+0.5, Math.random()*2+0.5, 1, m.x >> DOWNSAMPLE, m.y >> DOWNSAMPLE, 0, 0,m.x >> DOWNSAMPLE, m.y >> DOWNSAMPLE])
+      new Float32Array([
+        Math.random() * 2 + 0.5,
+        Math.random() * 2 + 0.5,
+        Math.random() * 2 + 0.5,
+        1,
+        m.x,
+        m.y,
+        0,
+        0,
+        m.previous.x,
+        m.previous.y,
+      ])
     );
 
     touches.push(m);
@@ -313,18 +324,18 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     m.previous.x = m.x;
     m.previous.y = m.y;
     m.time = Date.now();
-    m.x = touch.clientX;
-    m.y = touch.clientY;
+    m.x = touch.clientX >> DOWNSAMPLE;
+    m.y = touch.clientY >> DOWNSAMPLE;
     device.queue.writeBuffer(
       m.uniform,
       4 << 2,
       new Float32Array([
-        m.x >> DOWNSAMPLE,
-        m.y >> DOWNSAMPLE,
-        (((m.x - m.previous.x) / (m.time - m.previous.time + 1)) * 1000) >> DOWNSAMPLE,
-        (((m.y - m.previous.y) / (m.time - m.previous.time + 1)) * 1000) >> DOWNSAMPLE,
-        m.previous.x >> DOWNSAMPLE,
-        m.previous.y >> DOWNSAMPLE,
+        m.x,
+        m.y,
+        ((m.x - m.previous.x) / (m.time - m.previous.time + 1)) * 1000,
+        ((m.y - m.previous.y) / (m.time - m.previous.time + 1)) * 1000,
+        m.previous.x,
+        m.previous.y,
       ])
     );
   };
@@ -335,17 +346,18 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     m.uniform.destroy();
   };
 
+  let clearMouseTimeout: number;
   createEventListener(window, "mousemove", (e: MouseEvent) => {
-    const changedTouches = [{ clientX: e.clientX, clientY: e.clientY, identifier: -1 }];
-    for (let i = 0; i < changedTouches.length; i++) moveTouch(changedTouches[i]);
+    const touch = { clientX: e.clientX, clientY: e.clientY, identifier: -1 };
+    moveTouch(touch);
+    clearTimeout(clearMouseTimeout);
+    clearMouseTimeout = window.setTimeout(() => moveTouch(touch), 100);
   });
 
   createEventListener(window, "mousedown", (e: MouseEvent) => {
-    const changedTouches = [{ clientX: e.clientX, clientY: e.clientY, identifier: -1 }];
-    for (let i = 0; i < changedTouches.length; i++) {
-      destroyTouch(changedTouches[i]);
-      moveTouch(changedTouches[i]);
-    }
+    const touch = { clientX: e.clientX, clientY: e.clientY, identifier: -1 };
+    destroyTouch(touch);
+    moveTouch(touch);
   });
 
   createEventListener(
@@ -411,7 +423,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
   let animation: number;
   const frame = () => {
-    for(let ii=0;ii<10;ii+=1){
     const commandEncoder = device.createCommandEncoder();
 
     for (const mouse of touches) {
@@ -651,7 +662,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     }
 
     device.queue.submit([commandEncoder.finish()]);
-  }
+
     animation = requestAnimationFrame(frame);
   };
 
