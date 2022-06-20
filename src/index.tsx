@@ -284,7 +284,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
-    ]
+    ],
   });
   const jacobiLayout0 = device.createBindGroupLayout({
     entries: [
@@ -307,7 +307,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
-    ]
+    ],
   });
   const gradientLayout = device.createBindGroupLayout({
     entries: [
@@ -570,7 +570,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
             clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
             storeOp: "store",
             loadOp: "clear",
-          }
+          },
         ],
       });
       passEncoder.setPipeline(advectPipeline);
@@ -615,7 +615,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
             { binding: 1, resource: pressure.read.createView() },
           ],
         })
-      )
+      );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
 
@@ -657,7 +657,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
             clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
             storeOp: "store",
             loadOp: "clear",
-          }
+          },
         ],
       });
       passEncoder.setPipeline(jacobiPipeline);
@@ -669,16 +669,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
           entries: [
             { binding: 0, resource: { buffer: divergenceUniforms } },
             { binding: 1, resource: divergenceTex().createView() },
-          ]
+          ],
         })
       );
       passEncoder.setBindGroup(
         2,
         device.createBindGroup({
           layout: jacobiLayout1,
-          entries: [
-            { binding: 0, resource: pressure.read.createView() },
-          ]
+          entries: [{ binding: 0, resource: pressure.read.createView() }],
         })
       );
       passEncoder.draw(4, 1, 0, 0);
@@ -695,8 +693,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
             clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
             storeOp: "store",
             loadOp: "clear",
-          }
-        ]
+          },
+        ],
       });
       passEncoder.setPipeline(gradientPipeline);
       passEncoder.setBindGroup(0, bg0);
@@ -708,7 +706,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
             { binding: 0, resource: { buffer: divergenceUniforms } },
             { binding: 1, resource: pressure.read.createView() },
             { binding: 2, resource: velocity.read.createView() },
-          ]
+          ],
         })
       );
       passEncoder.draw(4, 1, 0, 0);
