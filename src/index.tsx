@@ -9,6 +9,7 @@ import clearWGSL from "./clear.wgsl?raw";
 import divergenceWGSL from "./divergence.wgsl?raw";
 import jacobiWGSL from "./jacobi.wgsl?raw";
 import gradientWGSL from "./gradient.wgsl?raw";
+import vorticityWGSL from "./vorticity.wgsl?raw";
 import splatWGSL from "./splat.wgsl?raw";
 import { createEventListener } from "@solid-primitives/event-listener";
 import "./index.css";
@@ -70,7 +71,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
 
   const uniforms = device.createBuffer({
-    size: 4 << 2,
+    size: 2 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
@@ -82,32 +83,11 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       mappedAtCreation: false,
     });
 
-  const advectUniforms = device.createBuffer({
-    size: 8 << 2,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: false,
-  });
-
-  const divergenceUniforms = device.createBuffer({
-    size: 2 << 2,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: false,
-  });
-
   const displayUniforms = device.createBuffer({
     size: 2 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
-
-  const splatUniforms = device.createBuffer({
-    size: 8 << 2,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: false,
-  });
-
-  device.queue.writeBuffer(splatUniforms, 4 << 2, new Float32Array([0.0, 1.0, 0.0, 1.0]));
-  device.queue.writeBuffer(advectUniforms, 6 << 2, new Float32Array([0.97, 0.98]));
 
   const touches: VelTouch[] = [];
   const createTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
@@ -208,10 +188,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
   createRenderEffect(() => {
     device.queue.writeBuffer(uniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
-    device.queue.writeBuffer(splatUniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
     device.queue.writeBuffer(displayUniforms, 0 << 2, new Float32Array([1 / width(), 1 / height()]));
-    device.queue.writeBuffer(divergenceUniforms, 0 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
-    device.queue.writeBuffer(advectUniforms, 4 << 2, new Float32Array([1 / dwidth(), 1 / dheight()]));
   });
 
   const layout0 = device.createBindGroupLayout({
@@ -328,6 +305,20 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       },
     ],
   });
+  const vorticityLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
   const splatLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -387,6 +378,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const gradientShader = device.createShaderModule({
     code: gradientWGSL,
   });
+  const vorticityShader = device.createShaderModule({
+    code: vorticityWGSL,
+  });
   const splatShader = device.createShaderModule({
     code: splatWGSL,
   });
@@ -407,7 +401,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       stripIndexFormat: "uint16",
     },
   });
-
   const advectPipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -424,7 +417,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       stripIndexFormat: "uint16",
     },
   });
-
   const clearPipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -441,7 +433,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       stripIndexFormat: "uint16",
     },
   });
-
   const divergencePipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -458,7 +449,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       stripIndexFormat: "uint16",
     },
   });
-
   const jacobiPipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -475,7 +465,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       stripIndexFormat: "uint16",
     },
   });
-
   const gradientPipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -492,7 +481,22 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       stripIndexFormat: "uint16",
     },
   });
-
+  const vorticityPipeline = device.createRenderPipeline({
+    vertex: {
+      module: vertShader,
+      entryPoint: "vert",
+    },
+    fragment: {
+      module: vorticityShader,
+      entryPoint: "vorticity",
+      targets: [{ format: "rg32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, vorticityLayout] }),
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    },
+  });
   const displayPipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -518,7 +522,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       const splatThing = device.createBindGroup({
         layout: splatLayout,
         entries: [
-          { binding: 0, resource: { buffer: splatUniforms } },
+          { binding: 0, resource: { buffer: uniforms } },
           { binding: 1, resource: dye.read.createView() },
           { binding: 2, resource: velocity.read.createView() },
         ],
@@ -580,7 +584,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         device.createBindGroup({
           layout: advectLayout,
           entries: [
-            { binding: 0, resource: { buffer: advectUniforms } },
+            { binding: 0, resource: { buffer: uniforms } },
             { binding: 1, resource: velocity.read.createView() },
             { binding: 2, resource: dye.read.createView() },
           ],
@@ -611,7 +615,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         device.createBindGroup({
           layout: clearLayout,
           entries: [
-            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 0, resource: { buffer: uniforms } },
             { binding: 1, resource: pressure.read.createView() },
           ],
         })
@@ -640,7 +644,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         device.createBindGroup({
           layout: divergenceLayout,
           entries: [
-            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 0, resource: { buffer: uniforms } },
             { binding: 1, resource: velocity.read.createView() },
           ],
         })
@@ -667,7 +671,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         device.createBindGroup({
           layout: jacobiLayout0,
           entries: [
-            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 0, resource: { buffer: uniforms } },
             { binding: 1, resource: divergenceTex().createView() },
           ],
         })
@@ -703,7 +707,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         device.createBindGroup({
           layout: gradientLayout,
           entries: [
-            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 0, resource: { buffer: uniforms } },
             { binding: 1, resource: pressure.read.createView() },
             { binding: 2, resource: velocity.read.createView() },
           ],

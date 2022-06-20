@@ -1,10 +1,7 @@
-@binding(0) @group(0) var samplerFront : sampler;
+@group(0) @binding(0) var samplerFront : sampler;
 
 struct Uniforms {
-    color: vec4<f32>,
     texelSize: vec2<f32>,
-    dyeDissipation: f32,
-    velocityDissipation: f32,
 };
 
 struct Output {
@@ -12,11 +9,14 @@ struct Output {
     @location(1) velocity: vec4<f32>,
 }
 
-@binding(0) @group(1) var<uniform> u : Uniforms;
-@binding(1) @group(1) var velocity : texture_2d<f32>;
-@binding(2) @group(1) var dye : texture_2d<f32>;
+@group(1) @binding(0) var<uniform> u : Uniforms;
+@group(1) @binding(1) var velocity : texture_2d<f32>;
+@group(1) @binding(2) var dye : texture_2d<f32>;
 
 let timestep = 0.016666;
+let dyeDissipation = 0.97;
+let velocityDissipation = 0.98;
+let color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
 
 @fragment
 fn advect(@builtin(position) coords: vec4<f32>) -> Output {
@@ -25,7 +25,7 @@ fn advect(@builtin(position) coords: vec4<f32>) -> Output {
     var startDye = textureSample(dye, samplerFront, pos);
     var startVelocity = textureSample(velocity, samplerFront, pos);
     var out: Output;
-    out.dye = ((u.color - startDye) * (1.0 - u.dyeDissipation) + startDye);
-    out.velocity = startVelocity * u.velocityDissipation;
+    out.dye = ((color - startDye) * (1.0 - dyeDissipation) + startDye);
+    out.velocity = startVelocity * velocityDissipation;
     return out;
 }
