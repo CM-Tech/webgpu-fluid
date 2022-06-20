@@ -28,7 +28,7 @@ const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
   };
 };
 
-const DOWNSAMPLE = 1;
+const DOWNSAMPLE = 0;
 type VelTouch = {
   identifier: number;
   time: number;
@@ -86,7 +86,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
     ],
   });
@@ -95,7 +95,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
       {
         binding: 1,
@@ -152,7 +152,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: splatShader,
       entryPoint: "splat",
-      targets: [{ format: presentationFormat }, { format: "rg32float" }],
+      targets: [{ format: "rgba32float" }, { format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout, splatTouchLayout] }),
   });
@@ -161,7 +161,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: advectShader,
       entryPoint: "advect",
-      targets: [{ format: presentationFormat }, { format: "rg32float" }],
+      targets: [{ format: "rgba32float" }, { format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
   });
@@ -247,7 +247,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const doubleFbo = (format?: GPUTextureFormat) =>
     createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
 
-  const dye = doubleFbo();
+  const dye = doubleFbo("rgba32float");
   const velocity = doubleFbo("rg32float");
   const pressure = doubleFbo("r32float");
   const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
@@ -260,7 +260,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
   const makeUniformsPerTouch = () =>
     device.createBuffer({
-      size: 8 << 2,
+      size: 10 << 2,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
     });
@@ -285,7 +285,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     device.queue.writeBuffer(
       m.uniform,
       0 << 2,
-      new Float32Array([Math.random(), Math.random(), Math.random(), 1, m.x >> DOWNSAMPLE, m.y >> DOWNSAMPLE, 0, 0])
+      new Float32Array([Math.random()*2+0.5, Math.random()*2+0.5, Math.random()*2+0.5, 1, m.x >> DOWNSAMPLE, m.y >> DOWNSAMPLE, 0, 0,m.x >> DOWNSAMPLE, m.y >> DOWNSAMPLE])
     );
 
     touches.push(m);
@@ -310,6 +310,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         m.y >> DOWNSAMPLE,
         (((m.x - m.previous.x) / (m.time - m.previous.time + 1)) * 1000) >> DOWNSAMPLE,
         (((m.y - m.previous.y) / (m.time - m.previous.time + 1)) * 1000) >> DOWNSAMPLE,
+        m.previous.x >> DOWNSAMPLE,
+        m.previous.y >> DOWNSAMPLE,
       ])
     );
   };
@@ -396,6 +398,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
   let animation: number;
   const frame = () => {
+    for(let ii=0;ii<10;ii+=1){
     const commandEncoder = device.createCommandEncoder();
 
     for (const mouse of touches) {
@@ -633,7 +636,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     }
 
     device.queue.submit([commandEncoder.finish()]);
-
+  }
     animation = requestAnimationFrame(frame);
   };
 
