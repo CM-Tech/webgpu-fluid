@@ -1,7 +1,14 @@
-import { createMemo, createSignal, createRenderEffect, onMount, onCleanup } from "solid-js";
+import {
+  createMemo,
+  createSignal,
+  createRenderEffect,
+  onMount,
+  onCleanup,
+  createResource,
+  createEffect,
+} from "solid-js";
 import type { Accessor } from "solid-js";
 import { render } from "solid-js/web";
-import { gpuCanvas, GPUContextType } from "./solid-gpu";
 import vertWGSL from "./vert.wgsl?raw";
 import displayWGSL from "./display.wgsl?raw";
 import advectWGSL from "./advect.wgsl?raw";
@@ -37,8 +44,14 @@ type VelTouch = {
   previous: { time: number; x: number; y: number };
   uniform: GPUBuffer;
 };
-type GPUProgram = (props: { width: Accessor<number>; height: Accessor<number> } & GPUContextType) => void;
-const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, device }) => {
+type GPUProgram = (props: {
+  width: Accessor<number>;
+  height: Accessor<number>;
+  device: GPUDevice;
+  context: GPUCanvasContext;
+}) => void;
+const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
+  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   const vertShader = device.createShaderModule({
     code: vertWGSL,
   });
@@ -402,13 +415,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     const commandEncoder = device.createCommandEncoder();
 
     for (const mouse of touches) {
-      const splatThing = device.createBindGroup({
-        layout: dyeVelocityLayout,
-        entries: [
-          { binding: 0, resource: dye.read.createView() },
-          { binding: 1, resource: velocity.read.createView() },
-        ],
-      });
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -427,7 +433,16 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       });
       passEncoder.setPipeline(splatPipeline);
       passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(1, splatThing);
+      passEncoder.setBindGroup(
+        1,
+        device.createBindGroup({
+          layout: dyeVelocityLayout,
+          entries: [
+            { binding: 0, resource: dye.read.createView() },
+            { binding: 1, resource: velocity.read.createView() },
+          ],
+        })
+      );
       passEncoder.setBindGroup(
         2,
         device.createBindGroup({
@@ -647,24 +662,32 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 const App = () => {
   const [width, setWidth] = createSignal(window.innerWidth);
   const [height, setHeight] = createSignal(window.innerHeight);
-  const resize = () => {
+  createEventListener(window, "resize", () => {
     setWidth(window.innerWidth);
     setHeight(window.innerHeight);
-  };
-  window.addEventListener("resize", resize);
-  onCleanup(() => window.removeEventListener("resize", resize));
+  });
 
-  return gpuCanvas(
-    {
-      get width() {
-        return width();
-      },
-      get height() {
-        return height();
-      },
-    },
-    (props) => GPUProgram({ ...props, width, height })
-  );
+  let c!: HTMLCanvasElement;
+
+  const [gpu] = createResource(async () => {
+    const adapter = await navigator.gpu?.requestAdapter();
+    if (!adapter) throw new Error("No GPU support");
+    return await adapter.requestDevice();
+  });
+
+  createEffect(() => {
+    let device = gpu();
+    if (!device) return;
+    const context = c.getContext("webgpu")!;
+    GPUProgram({
+      context,
+      device,
+      width,
+      height,
+    });
+  });
+
+  return <canvas ref={c} width={width()} height={height()}></canvas>;
 };
 
 render(App, document.getElementById("root")!);
