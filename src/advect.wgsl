@@ -17,7 +17,6 @@ struct Output {
     @location(1) velocity: vec4<f32>,
 }
 
-
 @fragment
 fn advect(@builtin(position) coords: vec4<f32>) -> Output {
     var uv = coords.xy * u.pixel;
