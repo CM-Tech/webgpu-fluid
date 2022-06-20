@@ -358,133 +358,87 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     code: splatWGSL,
   });
 
-  const splatPipeline = device.createRenderPipeline({
+  const defaultPipeline = {
     vertex: {
       module: vertShader,
       entryPoint: "vert",
     },
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    },
+  } as const;
+  const splatPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
     fragment: {
       module: splatShader,
       entryPoint: "splat",
       targets: [{ format: presentationFormat }, { format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, splatLayout, splatTouchLayout] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
   const advectPipeline = device.createRenderPipeline({
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
+    ...defaultPipeline,
     fragment: {
       module: advectShader,
       entryPoint: "advect",
       targets: [{ format: presentationFormat }, { format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, advectLayout] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
   const clearPipeline = device.createRenderPipeline({
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
+    ...defaultPipeline,
     fragment: {
       module: clearShader,
       entryPoint: "clear",
       targets: [{ format: "r32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, clearLayout] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
   const divergencePipeline = device.createRenderPipeline({
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
+    ...defaultPipeline,
     fragment: {
       module: divergenceShader,
       entryPoint: "divergence",
       targets: [{ format: "r32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, divergenceLayout] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
   const jacobiPipeline = device.createRenderPipeline({
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
+    ...defaultPipeline,
     fragment: {
       module: jacobiShader,
       entryPoint: "jacobi",
       targets: [{ format: "r32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, jacobiLayout0, jacobiLayout1] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
   const gradientPipeline = device.createRenderPipeline({
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
+    ...defaultPipeline,
     fragment: {
       module: gradientShader,
       entryPoint: "gradient",
       targets: [{ format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, gradientLayout] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
   const vorticityPipeline = device.createRenderPipeline({
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
+    ...defaultPipeline,
     fragment: {
       module: vorticityShader,
       entryPoint: "vorticity",
       targets: [{ format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, vorticityLayout] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
   const displayPipeline = device.createRenderPipeline({
-    vertex: {
-      module: vertShader,
-      entryPoint: "vert",
-    },
+    ...defaultPipeline,
     fragment: {
       module: displayShader,
       entryPoint: "display",
       targets: [{ format: presentationFormat }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
-    primitive: {
-      topology: "triangle-strip",
-      stripIndexFormat: "uint16",
-    },
   });
 
   let animation: number;
@@ -724,9 +678,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         1,
         device.createBindGroup({
           layout: displayLayout,
-          entries: [
-            { binding: 0, resource: dye.read.createView() },
-          ],
+          entries: [{ binding: 0, resource: dye.read.createView() }],
         })
       );
       passEncoder.draw(4, 1, 0, 0);
