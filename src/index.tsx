@@ -64,7 +64,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
   const dye = doubleFbo();
   const velocity = doubleFbo("rgba32float");
-  const pressure = doubleFbo();
+  const pressure = doubleFbo("r32float");
   const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
 
   const uniforms = device.createBuffer({
@@ -280,7 +280,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
     ],
   });
@@ -289,7 +289,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
     ]
   });
@@ -409,7 +409,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: jacobiShader,
       entryPoint: "jacobi",
-      targets: [{ format: "rgba32float" }],
+      targets: [{ format: "r32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, jacobiLayout0, jacobiLayout1] }),
     primitive: {
@@ -543,6 +543,44 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
+    }
+
+    for (let i = 0; i < 5; i++) {
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: pressure.write.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          }
+        ],
+      });
+      passEncoder.setPipeline(jacobiPipeline);
+      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(
+        1,
+        device.createBindGroup({
+          layout: jacobiLayout0,
+          entries: [
+            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 1, resource: divergenceTex().createView() },
+          ]
+        })
+      );
+      passEncoder.setBindGroup(
+        2,
+        device.createBindGroup({
+          layout: jacobiLayout1,
+          entries: [
+            { binding: 0, resource: pressure.read.createView() },
+          ]
+        })
+      );
+      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.end();
+
+      pressure.swap();
     }
 
     {
