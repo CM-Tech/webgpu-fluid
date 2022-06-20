@@ -1,6 +1,6 @@
 ## gputhing
 
-A simple version of Conway's Game of Life (GoL) with WebGPU.
+A full WebGPU fluid simulation using the Navier-Stokes equations.
 
 ```bash
 $ pnpm install
