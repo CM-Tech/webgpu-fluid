@@ -5,8 +5,10 @@ import { gpuCanvas, GPUContextType } from "./solid-gpu";
 import vertWGSL from "./vert.wgsl?raw";
 import displayWGSL from "./display.wgsl?raw";
 import advectWGSL from "./advect.wgsl?raw";
+import clearWGSL from "./clear.wgsl?raw";
 import divergenceWGSL from "./divergence.wgsl?raw";
 import jacobiWGSL from "./jacobi.wgsl?raw";
+import gradientWGSL from "./gradient.wgsl?raw";
 import splatWGSL from "./splat.wgsl?raw";
 import { createEventListener } from "@solid-primitives/event-listener";
 import "./index.css";
@@ -47,9 +49,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     });
   });
 
-  let createTexture = (format?: GPUTextureFormat) => (last?: GPUTexture) => {
+  const createTexture = (format?: GPUTextureFormat) => (last?: GPUTexture) => {
     if (last) last.destroy();
-    let newTex = device.createTexture({
+    const newTex = device.createTexture({
       format: format ?? presentationFormat,
       dimension: "2d",
       mipLevelCount: 1,
@@ -59,11 +61,11 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
 
     return newTex;
   };
-  let doubleFbo = (format?: GPUTextureFormat) =>
+  const doubleFbo = (format?: GPUTextureFormat) =>
     createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
 
   const dye = doubleFbo();
-  const velocity = doubleFbo("rgba32float");
+  const velocity = doubleFbo("rg32float");
   const pressure = doubleFbo("r32float");
   const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
 
@@ -105,9 +107,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   });
 
   device.queue.writeBuffer(splatUniforms, 4 << 2, new Float32Array([0.0, 1.0, 0.0, 1.0]));
-  device.queue.writeBuffer(advectUniforms, 6 << 2, new Float32Array([0.99, 0.9]));
+  device.queue.writeBuffer(advectUniforms, 6 << 2, new Float32Array([0.97, 0.98]));
 
-  let touches: VelTouch[] = [];
+  const touches: VelTouch[] = [];
   const createTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
     const m = {
       identifier: touch.identifier,
@@ -256,6 +258,20 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       },
     ],
   });
+  const clearLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
   const divergenceLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -293,6 +309,25 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       },
     ]
   });
+  const gradientLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
   const splatLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -322,7 +357,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     ],
   });
 
-  let sampler = device.createSampler({
+  const sampler = device.createSampler({
     minFilter: "nearest",
     magFilter: "nearest",
   });
@@ -340,11 +375,17 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const advectShader = device.createShaderModule({
     code: advectWGSL,
   });
+  const clearShader = device.createShaderModule({
+    code: clearWGSL,
+  });
   const divergenceShader = device.createShaderModule({
     code: divergenceWGSL,
   });
   const jacobiShader = device.createShaderModule({
     code: jacobiWGSL,
+  });
+  const gradientShader = device.createShaderModule({
+    code: gradientWGSL,
   });
   const splatShader = device.createShaderModule({
     code: splatWGSL,
@@ -358,7 +399,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: splatShader,
       entryPoint: "splat",
-      targets: [{ format: presentationFormat }, { format: "rgba32float" }],
+      targets: [{ format: presentationFormat }, { format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, splatLayout, splatTouchLayout] }),
     primitive: {
@@ -375,9 +416,26 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     fragment: {
       module: advectShader,
       entryPoint: "advect",
-      targets: [{ format: presentationFormat }, { format: "rgba32float" }],
+      targets: [{ format: presentationFormat }, { format: "rg32float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, advectG1layout] }),
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    },
+  });
+
+  const clearPipeline = device.createRenderPipeline({
+    vertex: {
+      module: vertShader,
+      entryPoint: "vert",
+    },
+    fragment: {
+      module: clearShader,
+      entryPoint: "clear",
+      targets: [{ format: "r32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, clearLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -418,6 +476,23 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     },
   });
 
+  const gradientPipeline = device.createRenderPipeline({
+    vertex: {
+      module: vertShader,
+      entryPoint: "vert",
+    },
+    fragment: {
+      module: gradientShader,
+      entryPoint: "gradient",
+      targets: [{ format: "rg32float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, gradientLayout] }),
+    primitive: {
+      topology: "triangle-strip",
+      stripIndexFormat: "uint16",
+    },
+  });
+
   const displayPipeline = device.createRenderPipeline({
     vertex: {
       module: vertShader,
@@ -439,7 +514,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
   const frame = () => {
     const commandEncoder = device.createCommandEncoder();
 
-    for (let mouse of touches) {
+    for (const mouse of touches) {
       const splatThing = device.createBindGroup({
         layout: splatLayout,
         entries: [
@@ -522,6 +597,35 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
+            view: pressure.write.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          },
+        ],
+      });
+      passEncoder.setPipeline(clearPipeline);
+      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(
+        1,
+        device.createBindGroup({
+          layout: clearLayout,
+          entries: [
+            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 1, resource: pressure.read.createView() },
+          ],
+        })
+      )
+      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.end();
+
+      pressure.swap();
+    }
+
+    {
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
             view: divergenceTex().createView(),
             clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
             storeOp: "store",
@@ -581,6 +685,36 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       passEncoder.end();
 
       pressure.swap();
+    }
+
+    {
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: velocity.write.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          }
+        ]
+      });
+      passEncoder.setPipeline(gradientPipeline);
+      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(
+        1,
+        device.createBindGroup({
+          layout: gradientLayout,
+          entries: [
+            { binding: 0, resource: { buffer: divergenceUniforms } },
+            { binding: 1, resource: pressure.read.createView() },
+            { binding: 2, resource: velocity.read.createView() },
+          ]
+        })
+      );
+      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.end();
+
+      velocity.swap();
     }
 
     {

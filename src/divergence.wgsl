@@ -20,10 +20,11 @@ fn sampleVelocity(uv: vec2<f32>) -> vec2<f32> {
 
 @fragment
 fn divergence(@builtin(position) coords: vec4<f32>) -> @location(0) f32 {
-  var L = sampleVelocity(coords.xy - vec2<f32>(u.texelSize.x, 0.0)).x;
-  var R = sampleVelocity(coords.xy + vec2<f32>(u.texelSize.x, 0.0)).x;
-  var T = sampleVelocity(coords.xy + vec2<f32>(0.0, u.texelSize.y)).y;
-  var B = sampleVelocity(coords.xy - vec2<f32>(0.0, u.texelSize.y)).y;
+  var uv = coords.xy * u.texelSize;
+  var L = sampleVelocity(uv - vec2<f32>(u.texelSize.x, 0.0)).x;
+  var R = sampleVelocity(uv + vec2<f32>(u.texelSize.x, 0.0)).x;
+  var T = sampleVelocity(uv + vec2<f32>(0.0, u.texelSize.y)).y;
+  var B = sampleVelocity(uv - vec2<f32>(0.0, u.texelSize.y)).y;
   var div = 0.5 * (R - L + T - B);
   return div;
 }
