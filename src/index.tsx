@@ -191,28 +191,26 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     device.queue.writeBuffer(displayUniforms, 0 << 2, new Float32Array([1 / width(), 1 / height()]));
   });
 
-  const layout0 = device.createBindGroupLayout({
+  const mainLayout = device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        sampler: {
-          type: "non-filtering",
-        },
-      },
-    ],
-  });
-  const bglayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d" },
+        sampler: { type: "non-filtering" },
       },
       {
         binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
         buffer: { type: "uniform" },
+      },
+    ],
+  });
+  const displayLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d" },
       },
     ],
   });
@@ -221,15 +219,10 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
       {
-        binding: 2,
+        binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d" },
       },
@@ -240,11 +233,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
     ],
@@ -254,11 +242,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
     ],
@@ -267,11 +250,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     entries: [
       {
         binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
@@ -291,15 +269,10 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
       {
-        binding: 2,
+        binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
@@ -310,11 +283,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
     ],
@@ -324,15 +292,10 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        buffer: { type: "uniform" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d" },
       },
       {
-        binding: 2,
+        binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
       },
@@ -352,9 +315,19 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
     minFilter: "nearest",
     magFilter: "nearest",
   });
-  const bg0 = device.createBindGroup({
-    layout: layout0,
-    entries: [{ binding: 0, resource: sampler }],
+  const mainBindGroup = device.createBindGroup({
+    layout: mainLayout,
+    entries: [
+      { binding: 0, resource: sampler },
+      { binding: 1, resource: { buffer: uniforms } },
+    ],
+  });
+  const displayBindGroup = device.createBindGroup({
+    layout: mainLayout,
+    entries: [
+      { binding: 0, resource: sampler },
+      { binding: 1, resource: { buffer: displayUniforms } },
+    ],
   });
 
   const vertShader = device.createShaderModule({
@@ -395,7 +368,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "splat",
       targets: [{ format: presentationFormat }, { format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, splatLayout, splatTouchLayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, splatLayout, splatTouchLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -411,7 +384,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "advect",
       targets: [{ format: presentationFormat }, { format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, advectLayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, advectLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -427,7 +400,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "clear",
       targets: [{ format: "r32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, clearLayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, clearLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -443,7 +416,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "divergence",
       targets: [{ format: "r32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, divergenceLayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, divergenceLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -459,7 +432,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "jacobi",
       targets: [{ format: "r32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, jacobiLayout0, jacobiLayout1] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, jacobiLayout0, jacobiLayout1] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -475,7 +448,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "gradient",
       targets: [{ format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, gradientLayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, gradientLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -491,7 +464,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "vorticity",
       targets: [{ format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, vorticityLayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, vorticityLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -507,7 +480,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       entryPoint: "display",
       targets: [{ format: presentationFormat }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [layout0, bglayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
     primitive: {
       topology: "triangle-strip",
       stripIndexFormat: "uint16",
@@ -522,9 +495,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
       const splatThing = device.createBindGroup({
         layout: splatLayout,
         entries: [
-          { binding: 0, resource: { buffer: uniforms } },
-          { binding: 1, resource: dye.read.createView() },
-          { binding: 2, resource: velocity.read.createView() },
+          { binding: 0, resource: dye.read.createView() },
+          { binding: 1, resource: velocity.read.createView() },
         ],
       });
       const passEncoder = commandEncoder.beginRenderPass({
@@ -544,7 +516,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(splatPipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(1, splatThing);
       passEncoder.setBindGroup(
         2,
@@ -578,15 +550,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(advectPipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
           layout: advectLayout,
           entries: [
-            { binding: 0, resource: { buffer: uniforms } },
-            { binding: 1, resource: velocity.read.createView() },
-            { binding: 2, resource: dye.read.createView() },
+            { binding: 0, resource: velocity.read.createView() },
+            { binding: 1, resource: dye.read.createView() },
           ],
         })
       );
@@ -609,15 +580,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(clearPipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
           layout: clearLayout,
-          entries: [
-            { binding: 0, resource: { buffer: uniforms } },
-            { binding: 1, resource: pressure.read.createView() },
-          ],
+          entries: [{ binding: 0, resource: pressure.read.createView() }],
         })
       );
       passEncoder.draw(4, 1, 0, 0);
@@ -638,15 +606,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(divergencePipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
           layout: divergenceLayout,
-          entries: [
-            { binding: 0, resource: { buffer: uniforms } },
-            { binding: 1, resource: velocity.read.createView() },
-          ],
+          entries: [{ binding: 0, resource: velocity.read.createView() }],
         })
       );
       passEncoder.draw(4, 1, 0, 0);
@@ -665,15 +630,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(jacobiPipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
           layout: jacobiLayout0,
-          entries: [
-            { binding: 0, resource: { buffer: uniforms } },
-            { binding: 1, resource: divergenceTex().createView() },
-          ],
+          entries: [{ binding: 0, resource: divergenceTex().createView() }],
         })
       );
       passEncoder.setBindGroup(
@@ -701,15 +663,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(gradientPipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
           layout: gradientLayout,
           entries: [
-            { binding: 0, resource: { buffer: uniforms } },
-            { binding: 1, resource: pressure.read.createView() },
-            { binding: 2, resource: velocity.read.createView() },
+            { binding: 0, resource: pressure.read.createView() },
+            { binding: 1, resource: velocity.read.createView() },
           ],
         })
       );
@@ -731,15 +692,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(vorticityPipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
           layout: vorticityLayout,
-          entries: [
-            { binding: 0, resource: { buffer: uniforms } },
-            { binding: 1, resource: velocity.read.createView() },
-          ]
+          entries: [{ binding: 0, resource: velocity.read.createView() }],
         })
       );
       passEncoder.draw(4, 1, 0, 0);
@@ -761,14 +719,13 @@ const GPUProgram: GPUProgram = ({ width, height, context, presentationFormat, de
         ],
       });
       passEncoder.setPipeline(displayPipeline);
-      passEncoder.setBindGroup(0, bg0);
+      passEncoder.setBindGroup(0, displayBindGroup);
       passEncoder.setBindGroup(
         1,
         device.createBindGroup({
-          layout: bglayout,
+          layout: displayLayout,
           entries: [
             { binding: 0, resource: dye.read.createView() },
-            { binding: 1, resource: { buffer: displayUniforms } },
           ],
         })
       );

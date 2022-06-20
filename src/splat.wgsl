@@ -1,12 +1,11 @@
-@group(0) @binding(0) var samplerFront : sampler;
-
 struct Uniforms {
     pixel: vec2<f32>,
-}
+};
+@group(0) @binding(0) var samplerFront : sampler;
+@group(0) @binding(1) var<uniform> u : Uniforms;
 
-@group(1) @binding(0) var<uniform> u : Uniforms;
-@group(1) @binding(1) var dye : texture_2d<f32>;
-@group(1) @binding(2) var velocity : texture_2d<f32>;
+@group(1) @binding(0) var dye : texture_2d<f32>;
+@group(1) @binding(1) var velocity : texture_2d<f32>;
 
 struct Touch {
     color: vec4<f32>,
