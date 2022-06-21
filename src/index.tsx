@@ -35,25 +35,28 @@ const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
     },
   };
 };
-function HSVtoRGB(h:number, s:number, v:number) {
-  let r = 0, g = 0, b = 0;
+function HSVtoRGB(h: number, s: number, v: number) {
+  let r = 0,
+    g = 0,
+    b = 0;
   const i = Math.floor(h * 6);
   const f = h * 6 - i;
   const p = v * (1 - s);
   const q = v * (1 - f * s);
   const t = v * (1 - (1 - f) * s);
+  // prettier-ignore
   switch (i % 6) {
-      case 0: r = v, g = t, b = p; break;
-      case 1: r = q, g = v, b = p; break;
-      case 2: r = p, g = v, b = t; break;
-      case 3: r = p, g = q, b = v; break;
-      case 4: r = t, g = p, b = v; break;
-      case 5: r = v, g = p, b = q; break;
+    case 0: r = v, g = t, b = p; break;
+    case 1: r = q, g = v, b = p; break;
+    case 2: r = p, g = v, b = t; break;
+    case 3: r = p, g = q, b = v; break;
+    case 4: r = t, g = p, b = v; break;
+    case 5: r = v, g = p, b = q; break;
   }
   return {
-      r: Math.round(r * 255),
-      g: Math.round(g * 255),
-      b: Math.round(b * 255)
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255),
   };
 }
 const DOWNSAMPLE = 0;
@@ -74,31 +77,31 @@ type GPUProgram = (props: {
 const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   const vertShader = device.createShaderModule({
-    code: "\n"+vertWGSL,
+    code: "\n" + vertWGSL,
   });
   const displayShader = device.createShaderModule({
-    code:commonWGSL+"\n"+ displayWGSL,
+    code: commonWGSL + "\n" + displayWGSL,
   });
   const advectShader = device.createShaderModule({
-    code: commonWGSL+"\n"+advectWGSL,
+    code: commonWGSL + "\n" + advectWGSL,
   });
   const clearShader = device.createShaderModule({
-    code: "\n"+clearWGSL,
+    code: "\n" + clearWGSL,
   });
   const divergenceShader = device.createShaderModule({
-    code: commonWGSL+"\n"+divergenceWGSL,
+    code: commonWGSL + "\n" + divergenceWGSL,
   });
   const jacobiShader = device.createShaderModule({
-    code: commonWGSL+"\n"+jacobiWGSL,
+    code: commonWGSL + "\n" + jacobiWGSL,
   });
   const gradientShader = device.createShaderModule({
-    code:commonWGSL+"\n"+ gradientWGSL,
+    code: commonWGSL + "\n" + gradientWGSL,
   });
   const vorticityShader = device.createShaderModule({
-    code: commonWGSL+"\n"+vorticityWGSL,
+    code: commonWGSL + "\n" + vorticityWGSL,
   });
   const splatShader = device.createShaderModule({
-    code: commonWGSL+"\n"+splatWGSL,
+    code: commonWGSL + "\n" + splatWGSL,
   });
 
   const mainLayout = device.createBindGroupLayout({
@@ -130,7 +133,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },{
+      },
+      {
         binding: 2,
         visibility: GPUShaderStage.FRAGMENT,
         texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
@@ -328,14 +332,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       previous: { time: Date.now(), x: touch.clientX >> DOWNSAMPLE, y: touch.clientY >> DOWNSAMPLE },
       uniform: makeUniformsPerTouch(),
     };
-    var mi=HSVtoRGB(Math.random(),1,Math.random());
+    var mi = HSVtoRGB(Math.random(), 1, Math.random());
     device.queue.writeBuffer(
       m.uniform,
       0 << 2,
       new Float32Array([
-        mi.r/255 * 2 + 0.5,
-        mi.g/255 * 2 + 0.5,
-        mi.b/255 * 2 + 0.5,
+        (mi.r / 255) * 2 + 0.5,
+        (mi.g / 255) * 2 + 0.5,
+        (mi.b / 255) * 2 + 0.5,
         1,
         m.x,
         m.y,
@@ -429,20 +433,16 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
   createRenderEffect(() => {
     device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([dwidth(), dheight()]));
-    device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([dwidth(), dheight(),DOWNSAMPLE]));
+    device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([dwidth(), dheight(), DOWNSAMPLE]));
   });
 
   const mainBindGroup = device.createBindGroup({
     layout: mainLayout,
-    entries: [
-      { binding: 0, resource: { buffer: uniforms } },
-    ],
+    entries: [{ binding: 0, resource: { buffer: uniforms } }],
   });
   const displayBindGroup = device.createBindGroup({
     layout: displayMainLayout,
-    entries: [
-      { binding: 0, resource: { buffer: displayUniforms } },
-    ],
+    entries: [{ binding: 0, resource: { buffer: displayUniforms } }],
   });
   const divergenceReadGroup = device.createBindGroup({
     layout: floatLayout,
@@ -582,7 +582,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.end();
     }
 
-    for (let i = 0; i <25; i++) {
+    for (let i = 0; i < 25; i++) {
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -682,10 +682,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         1,
         device.createBindGroup({
           layout: displayLayout,
-          entries: [{ binding: 0, resource: dye.read.createView() },{ binding: 1, resource:pressure.read.createView() },{ binding: 2, resource:velocity.read.createView() }],
+          entries: [
+            { binding: 0, resource: dye.read.createView() },
+            { binding: 1, resource: pressure.read.createView() },
+            { binding: 2, resource: velocity.read.createView() },
+          ],
         })
       );
-      
+
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
     }
