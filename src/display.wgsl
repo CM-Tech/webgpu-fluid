@@ -43,7 +43,6 @@ fn sampleP(coord: vec2<i32>, coordo: vec2<i32>) -> f32 {
     return q;
 }
 
-
 @fragment
 fn display(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
     var ppD = textureLoad(dye, vec2<i32>(coords.xy * pow(0.5, f32(u.downsample))), 0).xyz;
