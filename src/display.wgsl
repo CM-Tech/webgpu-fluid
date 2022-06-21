@@ -224,7 +224,7 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     spec = (log(LOG_SPEC+1.0)/LOG_SPEC)*log(1.0 + LOG_SPEC * spec);    
     
     var diffuse =vec4<f32>(ppD,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
-    diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, length(vec2<f32>(ppV.y, ppV.x) )/ 60.0)),0.0)*0.05;
+    diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, length(vec2<f32>(ppV.y, ppV.x) )/ 60.0)),0.0)*0.01;
     
     
     var fragColor = (diffuse + 4.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.3));
