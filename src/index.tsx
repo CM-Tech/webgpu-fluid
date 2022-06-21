@@ -36,15 +36,12 @@ const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
   };
 };
 function HSVtoRGB(h:number, s:number, v:number) {
-  var r, g, b, i, f, p, q, t;
-  if (arguments.length === 1) {
-      s = h.s, v = h.v, h = h.h;
-  }
-  i = Math.floor(h * 6);
-  f = h * 6 - i;
-  p = v * (1 - s);
-  q = v * (1 - f * s);
-  t = v * (1 - (1 - f) * s);
+  let r = 0, g = 0, b = 0;
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
   switch (i % 6) {
       case 0: r = v, g = t, b = p; break;
       case 1: r = q, g = v, b = p; break;

@@ -36,17 +36,11 @@ fn closestPoint(start: vec2<f32>, end: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
 
     // Clamp T to a 0-1 range. If t was < 0 or > 1
     // then the closest point was outside the line!
-    if (t < 0.0) {
-        t = 0.0;
-    }
-    if (t > 1.0) {
-        t = 1.0;
-    }
+    t = clamp(t, 0.0, 1.0);
 
     // Compute the projected position from the clamped t
     var d = vec2<f32>(a + t * (b - a));
 
-    // Return result
     return d;
 }
 
@@ -60,11 +54,8 @@ fn splat(@builtin(position) coords: vec4<f32>) -> Output {
     var out: Output;
     out.dye = vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
     out.velocity = vec4<f32>(velocityBase + strength * touch.velocity, 0., 1.0);
-   
     var exists = existe(coord);
-    if(exists<1.0) {
-       out.dye=vec4<f32>(0.0);
-       out.velocity=vec4<f32>(0.0);
-    }
+    out.dye *= exists;
+    out.velocity *= exists;
     return out;
 }
