@@ -60,5 +60,11 @@ fn splat(@builtin(position) coords: vec4<f32>) -> Output {
     var out: Output;
     out.dye = vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
     out.velocity = vec4<f32>(velocityBase + strength * touch.velocity, 0., 1.0);
+   
+    var exists = existe(coord);
+    if(exists<1.0) {
+       out.dye=vec4<f32>(0.0);
+       out.velocity=vec4<f32>(0.0);
+    }
     return out;
 }
