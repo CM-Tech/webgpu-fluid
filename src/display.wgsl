@@ -55,9 +55,9 @@ q=textureLoad(pressure, coordo, 0).x;
 fn display(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
     var ppD=textureLoad(dye, vec2<i32>(coords.xy* pow(0.5,f32(u.downsample))), 0).xyz;
     var exists = existe( vec2<i32>(coords.xy* pow(0.5,f32(u.downsample))));
-    // if(exists<1.0){
-    //     return vec4<f32>(1.0,0.5,0.5,1.0);
-    // }
+    if(exists<1.0){
+        return vec4<f32>(1.0,1.0,1.0,1.0);
+    }
     var ppV=textureLoad(velocity, vec2<i32>(coords.xy* pow(0.5,f32(u.downsample))), 0).xy;
     var pp=sampleP(vec2<i32>(coords.xy* pow(0.5,f32(u.downsample))), vec2<i32>(coords.xy* pow(0.5,f32(u.downsample))));
     var ppL=sampleP( vec2<i32>(coords.xy* pow(0.5,f32(u.downsample)))-vec2<i32>(1,0), vec2<i32>(coords.xy* pow(0.5,f32(u.downsample)))+vec2<i32>(0,0));
@@ -66,5 +66,6 @@ fn display(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
    var D3L=vec3<f32>(-vec2<f32>(1,0),ppL);
    var D3T=vec3<f32>(-vec2<f32>(0,1),ppT);
     var norm=normalize(cross(D3L-D3C,D3T-D3C));
-    return vec4<f32>(ppD+hsv2rgb(vec3<f32>(atan2(ppV.y,ppV.x)/atan2(1.0,0.0)/4.0,1.0,length(vec2<f32>(ppV.y,ppV.x)/60.0)))*(vec3<f32>(dot(norm,normalize(vec3<f32>(-1.0,-1.0,1.0))))/2.0+0.75)*0.1,1.0);
+    var bri=((dot(norm,normalize(vec3<f32>(-1.0,-1.0,1.0))))/2.0*1.5+0.75);
+    return vec4<f32>((ppD+hsv2rgb(vec3<f32>(bri*atan2(ppV.y,ppV.x)/atan2(1.0,0.0)/4.0,1.0,length(vec2<f32>(ppV.y,ppV.x)/60.0)))*bri*0.05),1.0);
 }

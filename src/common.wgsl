@@ -9,7 +9,7 @@ fn existe(coord: vec2<i32>) -> f32 {
     if (u.resolution.y < W) {
         W = u.resolution.y;
     }
-    W=W;
+    W=0;//W;
     var jj=vec2<f32>(coord);
     if(jj.x<f32(W) / 2.0){
         jj.x=f32(W) / 2.0;

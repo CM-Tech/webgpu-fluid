@@ -8,7 +8,7 @@ struct Uniforms {
 
 let timestep = 0.016666;
 let dyeDissipation = 0.7;
-let velocityDissipation = 0.5;//0.75;
+let velocityDissipation = 0.7;//0.75;
 let color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
 
 struct Output {

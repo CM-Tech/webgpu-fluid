@@ -331,7 +331,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       previous: { time: Date.now(), x: touch.clientX >> DOWNSAMPLE, y: touch.clientY >> DOWNSAMPLE },
       uniform: makeUniformsPerTouch(),
     };
-    var mi=HSVtoRGB(Math.random(),1,0.5);
+    var mi=HSVtoRGB(Math.random(),1,Math.random());
     device.queue.writeBuffer(
       m.uniform,
       0 << 2,
