@@ -7,8 +7,8 @@ struct Uniforms {
 @group(1) @binding(1) var velocity : texture_2d<f32>;
 
 let timestep = 0.016666;
-let dyeDissipation = 0.5;
-let velocityDissipation = 0.7;//0.75;
+let dyeDissipation = 0.9;
+let velocityDissipation = 0.9;//0.75;
 let color = vec4<f32>(vec3<f32>(0.0), 1.0);
 
 struct Output {

@@ -15,7 +15,7 @@ struct Touch {
 
 @group(2) @binding(0) var<uniform> touch : Touch;
 
-let radius = 400.0;
+let radius = 1600.0;
 
 struct Output {
     @location(0) dye: vec4<f32>,

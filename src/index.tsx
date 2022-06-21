@@ -337,9 +337,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       m.uniform,
       0 << 2,
       new Float32Array([
-        (mi.r / 255) * 2 + 0.5,
-        (mi.g / 255) * 2 + 0.5,
-        (mi.b / 255) * 2 + 0.5,
+        (mi.r / 255) * 1.5 + 0.5,
+        (mi.g / 255) * 1.5 + 0.5,
+        (mi.b / 255) * 1.5 + 0.5,
         1,
         m.x,
         m.y,
@@ -582,7 +582,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.end();
     }
 
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 100; i++) {
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {

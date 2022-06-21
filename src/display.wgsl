@@ -67,7 +67,7 @@ fn sampleP(coord: vec2<i32>, coordo: vec2<i32>) -> f32 {
 let BUMP = 3200.0;
 
 fn D(uv:vec2<f32>,d:vec2<f32>,mip:i32) -> f32 {
-    return -textureLoad(pressure, vec2<i32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x;
+    return -textureLoad(pressure, vec2<i32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x*100.0;
 }
 
 fn diff( uv:vec2<f32>,  mip: i32) -> vec2<f32> {
@@ -203,7 +203,7 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // blur the gradient to reduce appearance of artifacts,
     // and do cheap occlusion with mipmaps
-    let  STEPS= 10;
+    let  STEPS= 1;
     let  ODIST= 2.0;
     for(mip = 1; mip <= STEPS; mip += 1) {	 
         dxy += (1.0/pow(2.0,f32(mip))) * diff(uv, mip - 1);	
@@ -225,7 +225,7 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     
     var diffuse =vec4<f32>(ppD,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
     diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, length(vec2<f32>(ppV.y, ppV.x) )/ 60.0)),0.0)*0.01;
-    
+    // diffuse=vec4<f32>(vec3<f32>(-d/100.0),1.0);
     
     var fragColor = (diffuse + 4.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.3));
     fragColor = mix(1.0,occ,0.7) * (softclamp42(0.0,1.0,contrast(fragColor,4.5),3.0));

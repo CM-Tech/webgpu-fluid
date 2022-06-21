@@ -11,7 +11,7 @@ fn sampleP(coord: vec2<i32>, coordo: vec2<i32>) -> f32 {
     var exists = existe(coord);
     var q = textureLoad(pressure, coord, 0).x;
     if (exists < 1.0) {
-        q = textureLoad(pressure, coordo, 0).x;
+        q = textureLoad(pressure,( coordo + coord )/2, 0).x;
     }
     return q;
 }
