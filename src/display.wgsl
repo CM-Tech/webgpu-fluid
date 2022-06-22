@@ -76,7 +76,7 @@ fn textureSampleSmooth(a: texture_2d<f32>, uv: vec2<f32>,mip:i32) -> vec4<f32> {
     );
 }
 fn D(uv:vec2<f32>,d:vec2<f32>,mip:i32) -> f32 {
-    return textureSampleSmooth(pressure, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x*10.0;
+    return textureSampleSmooth(pressure, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x;//*length(textureSampleSmooth(dye, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xyz);
 }
 
 fn diff( uv:vec2<f32>,  mip: i32) -> vec2<f32> {
@@ -231,15 +231,17 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     avd=ldq.avd;
     
     var spec = ggx(avd, vec3(0,1,0), ld, 0.1, 0.1);
-    let LOG_SPEC =1000.0;
+    let LOG_SPEC =10.0;
     spec = (log(LOG_SPEC+1.0)/LOG_SPEC)*log(1.0 + LOG_SPEC * spec);    
     
     var diffuse =vec4<f32>(ppD+0.25,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
     diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, 0.5*min(1.0,length(vec2<f32>(ppV.y, ppV.x) )/ 60.0))),0.0)*0.0;
-    // if (exists < 1.0) {
-    //     return vec4<f32>(vec3<f32>(0.0),1.0);
-    //     diffuse=vec4<f32>(vec3<f32>(0.25),1.0);
-    // }
+    if (exists < 1.0) {
+        // return vec4<f32>(vec3<f32>(0.0),1.0);
+        // diffuse=vec4<f32>(vec3<f32>(0.25),1.0);
+    }else{
+        // diffuse=vec4<f32>(vec3<f32>(0.25),1.0);
+    }
     // diffuse=vec4<f32>(vec3<f32>(-d/100.0),1.0);
     
     var fragColor = (diffuse*0.2/2.0 + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.93))*10.0;

@@ -7,7 +7,7 @@ struct Uniforms {
 
 let EPSILON = 2.4414e-4; // 2^-12
 let timestep = 0.016666;
-let curlAmount = 6.0;
+let curlAmount = 4.0;
 
 fn curl(coords: vec2<i32>) -> f32 {
     var L = textureLoad(velocity, coords - vec2<i32>(1, 0), 0).y;

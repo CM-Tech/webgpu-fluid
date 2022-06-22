@@ -7,8 +7,8 @@ struct Uniforms {
 @group(1) @binding(1) var velocity : texture_2d<f32>;
 
 let timestep = 0.016666;
-let dyeDissipation = 0.99;
-let velocityDissipation = 0.99;//0.75;
+let dyeDissipation = 1.0;
+let velocityDissipation = 1.0;//0.75;
 let color = vec4<f32>(vec3<f32>(0.0), 1.0);
 
 struct Output {
@@ -17,8 +17,8 @@ struct Output {
 }
 
 fn textureLoadFalloof(a: texture_2d<f32>, coord: vec2<i32>, e:f32) -> vec4<f32> {
-    var exists = existe(coord);
-    var q = textureLoad(a, coord, 0);
+    var exists = existe(((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var q = textureLoad(a, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0);
     return q * (1.0 - abs(exists - e));
 }
 

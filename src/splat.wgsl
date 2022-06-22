@@ -53,7 +53,7 @@ fn splat(@builtin(position) coords: vec4<f32>) -> Output {
     var velocityBase = textureLoad(velocity, coord, 0).xy;
     var out: Output;
     out.dye = vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
-    out.velocity = vec4<f32>(velocityBase  + strength * touch.velocity, 0., 1.0);
+    out.velocity = vec4<f32>(velocityBase * (1.0 - strength)  + strength * touch.velocity, 0., 1.0);
     var exists = existe(coord);
     // out.dye *= exists;
     // out.velocity *= exists;

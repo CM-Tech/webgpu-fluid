@@ -21,7 +21,8 @@ import commonWGSL from "./common.wgsl?raw";
 import splatWGSL from "./splat.wgsl?raw";
 import { createEventListener } from "@solid-primitives/event-listener";
 import "./index.css";
-import { createControls } from "solid-leva";
+import { createControls,LevaPanel, levaStore } from "solid-leva";
+import { createStore, StoreSetter } from "solid-js/store";
 
 const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
   return {
@@ -70,45 +71,57 @@ type VelTouch = {
   previous: { time: number; x: number; y: number };
   uniform: GPUBuffer;
 };
-type GPUProgram = (props: {
-  width: Accessor<number>;
-  height: Accessor<number>;
+type Config={ pressureSolverIterations: number,color:{r:number,g:number,b:number} };
+// type GPUProgram = (props: {
+//   width: number;
+//   height: number;
+//   device: GPUDevice;
+//   context: GPUCanvasContext;
+//   config: Store<Config>,
+//   setConfig: StoreSetter<Config>
+// }) => void;
+let lastH=Math.random();
+const GPUProgram = (props:{
+  width: number;
+  height: number;
   device: GPUDevice;
   context: GPUCanvasContext;
-}) => void;
-let lastH=Math.random();
-const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
-  const cont = createControls({ pressureSolverIterations: 100 });
+  config: Store<Config>,
+  setConfig: StoreSetter<Config>
+}) => {
+  
+  createEffect(()=>{
+    if(!props.device || !props.context) return ;
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-  const vertShader = device.createShaderModule({
+  const vertShader = props.device.createShaderModule({
     code: "\n" + vertWGSL,
   });
-  const displayShader = device.createShaderModule({
+  const displayShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + displayWGSL,
   });
-  const advectShader = device.createShaderModule({
+  const advectShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + advectWGSL,
   });
-  const clearShader = device.createShaderModule({
+  const clearShader = props.device.createShaderModule({
     code: "\n" + clearWGSL,
   });
-  const divergenceShader = device.createShaderModule({
+  const divergenceShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + divergenceWGSL,
   });
-  const jacobiShader = device.createShaderModule({
+  const jacobiShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + jacobiWGSL,
   });
-  const gradientShader = device.createShaderModule({
+  const gradientShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + gradientWGSL,
   });
-  const vorticityShader = device.createShaderModule({
+  const vorticityShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + vorticityWGSL,
   });
-  const splatShader = device.createShaderModule({
+  const splatShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + splatWGSL,
   });
 
-  const mainLayout = device.createBindGroupLayout({
+  const mainLayout = props.device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -117,7 +130,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
-  const displayMainLayout = device.createBindGroupLayout({
+  const displayMainLayout = props.device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -126,7 +139,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
-  const displayLayout = device.createBindGroupLayout({
+  const displayLayout = props.device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -145,7 +158,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
-  const dyeVelocityLayout = device.createBindGroupLayout({
+  const dyeVelocityLayout = props.device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -159,7 +172,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
-  const floatLayout = device.createBindGroupLayout({
+  const floatLayout = props.device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -168,21 +181,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
-  const float2Layout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },
-    ],
-  });
-  const gradientLayout = device.createBindGroupLayout({
+  const float2Layout = props.device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -196,7 +195,21 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
-  const splatTouchLayout = device.createBindGroupLayout({
+  const gradientLayout = props.device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
+  const splatTouchLayout = props.device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
@@ -216,84 +229,84 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       stripIndexFormat: "uint16",
     },
   } as const;
-  const splatPipeline = device.createRenderPipeline({
+  const splatPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: splatShader,
       entryPoint: "splat",
       targets: [{ format: "rgba32float" }, { format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout, splatTouchLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout, splatTouchLayout] }),
   });
-  const advectPipeline = device.createRenderPipeline({
+  const advectPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: advectShader,
       entryPoint: "advect",
       targets: [{ format: "rgba32float" }, { format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
   });
-  const clearPipeline = device.createRenderPipeline({
+  const clearPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: clearShader,
       entryPoint: "clear",
       targets: [{ format: "r32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
   });
-  const divergencePipeline = device.createRenderPipeline({
+  const divergencePipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: divergenceShader,
       entryPoint: "divergence",
       targets: [{ format: "r32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
   });
-  const jacobiPipeline = device.createRenderPipeline({
+  const jacobiPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: jacobiShader,
       entryPoint: "jacobi",
       targets: [{ format: "r32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, float2Layout, floatLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, float2Layout, floatLayout] }),
   });
-  const gradientPipeline = device.createRenderPipeline({
+  const gradientPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: gradientShader,
       entryPoint: "gradient",
       targets: [{ format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, gradientLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, gradientLayout] }),
   });
-  const vorticityPipeline = device.createRenderPipeline({
+  const vorticityPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: vorticityShader,
       entryPoint: "vorticity",
       targets: [{ format: "rg32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
   });
-  const displayPipeline = device.createRenderPipeline({
+  const displayPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: displayShader,
       entryPoint: "display",
       targets: [{ format: presentationFormat }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
   });
 
-  const dwidth = () => width() >> DOWNSAMPLE;
-  const dheight = () => height() >> DOWNSAMPLE;
+  const dwidth = () => props.width >> DOWNSAMPLE;
+  const dheight = () => props.height >> DOWNSAMPLE;
   createRenderEffect(() => {
-    context.configure({
-      device,
+    props.context.configure({
+      device:props.device,
       alphaMode: "opaque",
       format: presentationFormat,
       usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
@@ -302,7 +315,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
   const createTexture = (format?: GPUTextureFormat) => (last?: GPUTexture) => {
     if (last) last.destroy();
-    const newTex = device.createTexture({
+    const newTex = props.device.createTexture({
       format: format ?? presentationFormat,
       dimension: "2d",
       mipLevelCount: 1,
@@ -321,20 +334,20 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const pressure = doubleFbo("r32float");
   const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
 
-  const uniforms = device.createBuffer({
+  const uniforms = props.device.createBuffer({
     size: 2 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
 
   const makeUniformsPerTouch = () =>
-    device.createBuffer({
+  props.device.createBuffer({
       size: 10 << 2,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
     });
 
-  const displayUniforms = device.createBuffer({
+  const displayUniforms = props.device.createBuffer({
     size: 3 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
@@ -351,9 +364,10 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       uniform: makeUniformsPerTouch(),
     };
     lastH=(lastH+((Math.sqrt(5)+1)/2))%1;
-    var mi = HSVtoRGB(lastH, 1, 0.5);
-    var  kkl=Math.random()*1.5+1.0;
-    device.queue.writeBuffer(
+    var mi = props.config.color;
+    props.setConfig("color",HSVtoRGB(Math.random(), Math.random(),Math.random()));
+    var  kkl=1.0;//Math.random();//*1.5+1.0;
+    props.device.queue.writeBuffer(
       m.uniform,
       0 << 2,
       new Float32Array([
@@ -384,7 +398,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     m.time = Date.now();
     m.x = touch.clientX >> DOWNSAMPLE;
     m.y = touch.clientY >> DOWNSAMPLE;
-    device.queue.writeBuffer(
+    props.device.queue.writeBuffer(
       m.uniform,
       4 << 2,
       new Float32Array([
@@ -405,17 +419,25 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   };
 
   let clearMouseTimeout: number;
-  createEventListener(window, "mousemove", (e: MouseEvent) => {
+  createEventListener(document.querySelector("canvas")!, "mousemove", (e: MouseEvent) => {
     const touch = { clientX: e.clientX, clientY: e.clientY, identifier: -1 };
+    const m = touches.find((t) => t.identifier === touch.identifier)!; // TODO: YEET
+    if (!m) return;
     moveTouch(touch);
-    clearTimeout(clearMouseTimeout);
-    clearMouseTimeout = window.setTimeout(() => moveTouch(touch), 100);
+    // clearTimeout(clearMouseTimeout);
+    // clearMouseTimeout = window.setTimeout(() => moveTouch(touch), 100);
   });
 
-  createEventListener(window, "mousedown", (e: MouseEvent) => {
+  createEventListener(document.querySelector("canvas")!, "mousedown", (e: MouseEvent) => {
+    
     const touch = { clientX: e.clientX, clientY: e.clientY, identifier: -1 };
     destroyTouch(touch);
-    moveTouch(touch);
+    if(e.button===0)moveTouch(touch);
+  });
+  createEventListener(document.querySelector("canvas")!, "mouseup", (e: MouseEvent) => {
+    
+    const touch = { clientX: e.clientX, clientY: e.clientY, identifier: -1 };
+    destroyTouch(touch);
   });
 
   createEventListener(
@@ -452,22 +474,22 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   });
 
   createRenderEffect(() => {
-    device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([dwidth(), dheight()]));
-    device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([dwidth(), dheight(), DOWNSAMPLE]));
+    props.device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([dwidth(), dheight()]));
+    props.device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([dwidth(), dheight(), DOWNSAMPLE]));
   });
 
-  const mainBindGroup = device.createBindGroup({
+  const mainBindGroup = props.device.createBindGroup({
     layout: mainLayout,
     entries: [{ binding: 0, resource: { buffer: uniforms } }],
   });
-  const displayBindGroup = device.createBindGroup({
+  const displayBindGroup = props.device.createBindGroup({
     layout: displayMainLayout,
     entries: [{ binding: 0, resource: { buffer: displayUniforms } }],
   });
 
   let animation: number;
   const frame = () => {
-    const commandEncoder = device.createCommandEncoder();
+    const commandEncoder = props.device.createCommandEncoder();
 
     for (const mouse of touches) {
       const passEncoder = commandEncoder.beginRenderPass({
@@ -490,7 +512,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: dyeVelocityLayout,
           entries: [
             { binding: 0, resource: dye.read.createView() },
@@ -500,7 +522,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       );
       passEncoder.setBindGroup(
         2,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: splatTouchLayout,
           entries: [{ binding: 0, resource: { buffer: mouse.uniform } }],
         })
@@ -533,7 +555,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: dyeVelocityLayout,
           entries: [
             { binding: 0, resource: dye.read.createView() },
@@ -563,7 +585,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: pressure.read.createView() }],
         })
@@ -589,7 +611,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: velocity.read.createView() }],
         })
@@ -598,12 +620,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.end();
     }
     
-  const divergenceReadGroup = device.createBindGroup({
+  const divergenceReadGroup = props.device.createBindGroup({
     layout: float2Layout,
     entries: [{ binding: 0, resource: divergenceTex().createView() },{ binding: 1, resource:velocity.read.createView() }],
   });
 
-    for (let i = 0; i < cont.pressureSolverIterations; i++) {
+    for (let i = 0; i < props.config.pressureSolverIterations; i++) {
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -619,7 +641,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(1, divergenceReadGroup);
       passEncoder.setBindGroup(
         2,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: pressure.read.createView() }],
         })
@@ -645,7 +667,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: gradientLayout,
           entries: [
             { binding: 0, resource: pressure.read.createView() },
@@ -674,7 +696,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(0, mainBindGroup);
       passEncoder.setBindGroup(
         1,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: velocity.read.createView() }],
         })
@@ -686,7 +708,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     }
 
     {
-      const currentTexture = context.getCurrentTexture();
+      const currentTexture = props.context.getCurrentTexture();
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -701,7 +723,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.setBindGroup(0, displayBindGroup);
       passEncoder.setBindGroup(
         1,
-        device.createBindGroup({
+        props.device.createBindGroup({
           layout: displayLayout,
           entries: [
             { binding: 0, resource: dye.read.createView() },
@@ -715,18 +737,73 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.end();
     }
 
-    device.queue.submit([commandEncoder.finish()]);
+    props.device.queue.submit([commandEncoder.finish()]);
 
     animation = requestAnimationFrame(frame);
   };
 
   onMount(frame);
   onCleanup(() => cancelAnimationFrame(animation));
+});
+  return <div></div>;
 };
 
 const App = () => {
   const [width, setWidth] = createSignal(window.innerWidth);
   const [height, setHeight] = createSignal(window.innerHeight);
+  const [context,setContext] = createSignal<GPUCanvasContext>();
+  const [device,setDevice] = createSignal<GPUDevice>();
+  
+  const [config,setConfigf]=createStore({ pressureSolverIterations: 100,color:{r:1,g:1,b:1} })
+  let did=false;
+  const setConfig=(...args)=>{var v=setConfigf(...args);
+    document.querySelector("#leva__root")?.remove();
+    // console.log(args[0],args[1])
+    levaStore.disposePaths([args[0]])
+    try{
+      // did=true;
+    levaStore.setValueAtPath(args[0],args[1],false)
+    }catch(e){
+    console.log("E".e)
+    }
+    setControls(createControls({ pressureSolverIterations: config.pressureSolverIterations,color:{...config.color} }));
+    // did=false;
+    // levaStore.subscribeToEditStart("color",()=>{
+    //   console.log("YEE")
+    //   setConfig("color",{...controls().color});
+    // }
+    // )
+    // setControls(createControls({pressureSolverIterations:config.pressureSolverIterations,color:config.color}));
+    return v};
+  const [controls,setControls] = createSignal(createControls({ pressureSolverIterations: config.pressureSolverIterations,color:{...config.color} }));
+
+  // createEffect(()=>{
+  //   console.log("C",{...controls().color});
+  //   if(!did){
+  //   did=true;
+  //   window.setTimeout(()=>{
+  //     // try{
+  //     //   setConfig("pressureSolverIterations",config.pressureSolverIterations)
+  //     //   }catch(e){
+    
+  //     //   }
+  //       try{
+  //         console.log("C",{...controls().color});
+  //         setConfig("color",JSON.parse(JSON.stringify({...controls().color})))
+  //         }catch(e){
+  //     console.log(e);
+  //         }
+          
+  //       window.setTimeout(()=>{
+  //         did=false;
+  //         },1000);
+  //     },1000);
+  //   }
+  //   // levaStore.dispose();
+  //   // document.querySelector("#leva__root")?.remove();
+  //   // setControls(createControls({pressureSolverIterations:config.pressureSolverIterations,color:config.color}))
+  // });
+  
   createEventListener(window, "resize", () => {
     setWidth(window.innerWidth);
     setHeight(window.innerHeight);
@@ -734,25 +811,39 @@ const App = () => {
 
   let c!: HTMLCanvasElement;
 
-  const [gpu] = createResource(async () => {
+  // const [gpu] = createResource(async () => {
+  //   const adapter = await navigator.gpu?.requestAdapter();
+  //   if (!adapter) throw new Error("No GPU support");
+  //   return await adapter.requestDevice();
+  // });
+  (async () => {
     const adapter = await navigator.gpu?.requestAdapter();
     if (!adapter) throw new Error("No GPU support");
     return await adapter.requestDevice();
-  });
+  })().then(x=>{
+    console.log("D",x)
+    setDevice(x)})
 
   createEffect(() => {
-    let device = gpu();
-    if (!device) return;
-    const context = c.getContext("webgpu")!;
-    GPUProgram({
-      context,
-      device,
-      width,
-      height,
-    });
+    // setControls(createControls(config));
+    
+    createControls(()=>({pressureSolverIterations:config.pressureSolverIterations}))
+    // setConfig("pressureSolverIterations",controls.pressureSolverIterations);
+  //   let devicee = gpu();
+  // if (devicee)
+  // setDevice(devicee);
+    // window.setInterval(()=>{
+      
+    // setConfig(controls);
+    // },100);
+    // setContext (c.getContext("webgpu")!);
+    
   });
-
-  return <canvas ref={c} width={width()} height={height()}></canvas>;
+  
+  
+  return <div><canvas ref={(c)=>setContext (c.getContext("webgpu")!)} width={width()} height={height()}>
+    
+  </canvas><GPUProgram context={context()!} device={device()!} width={width()} height={height()} config={controls()} setConfig={setConfig}></GPUProgram><LevaPanel store={levaStore}/></div>;
 };
 
-render(App, document.getElementById("root")!);
+render(()=><App/>, document.getElementById("root")!);

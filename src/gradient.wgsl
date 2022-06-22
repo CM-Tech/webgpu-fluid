@@ -8,10 +8,10 @@ struct Uniforms {
 
 
 fn sampleP(coord: vec2<i32>, coordo: vec2<i32>,exists2:f32) -> f32 {
-    var exists = existe(coord);
-    var q = textureLoad(pressure, coord, 0).x;
+    var exists = existe(((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var q = textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
     if (exists !=exists2) {
-        q = textureLoad(pressure, coordo , 0).x;
+        q = textureLoad(pressure, ((coordo) % u.resolution.xy+u.resolution.xy)% u.resolution.xy , 0).x;
     }
     return q;
 }

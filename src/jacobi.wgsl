@@ -9,15 +9,15 @@ struct Uniforms {
 @group(2) @binding(0) var pressure : texture_2d<f32>;
 
 fn textureLoadFalloof(a: texture_2d<f32>, coord: vec2<i32>, coordo: vec2<i32>) -> vec2<f32> {
-    var exists = existe(coord);
-    var q = textureLoad(a, coord, 0).x;
-    var q2 = textureLoad(a, coordo, 0).x;
+    var exists = existe((coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var q = textureLoad(a, (coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
+    var q2 = textureLoad(a, (coordo % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
     return vec2<f32>(q * exists + (1.0 - exists )*q2, exists + (1.0 - exists ));
 }
 fn sampleVelocity(coord: vec2<i32>,coordo: vec2<i32>) -> vec3<f32> {
    
-    var exists = existe(coord);
-    var q = textureLoad(velocity, coord, 0).xy;
+    var exists = existe((coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var q = textureLoad(velocity, (coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;
 //     if(exists<1.0){
 // q=-textureLoad(velocity, coordo, 0).xy;
 //     }
@@ -74,18 +74,18 @@ fn jacobi(@builtin(position) coords: vec4<f32>) -> @location(0) f32 {
     var fl=vec2<f32>(0.0);
     for(var o=0;o<4;o+=1){
 
-        var ff= textureLoad(pressure, coord +dir,0 ).x;
-        var ff2 = textureLoad(velocity, coord+dir, 0).xy;//sampleVelocity(coord + dir,coord);
+        var ff= textureLoad(pressure, ((coord+dir) % u.resolution.xy+u.resolution.xy)% u.resolution.xy,0 ).x;
+        var ff2 = textureLoad(velocity, ((coord+dir) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;//sampleVelocity(coord + dir,coord);
         if(existe(coord + dir)!=existe(coord )){
-            ff2=-textureLoad(velocity, coord, 0).xy;
-            ff=textureLoad(pressure, coord, 0).x;
+            ff2=-textureLoad(velocity, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;
+            ff=textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
         }
         // if(existe(coord )<1.0 && o==0){
         //     ff2=textureLoad(velocity, coord + dir, 0).xy*0.0;
         //     ff=textureLoad(pressure, coord + dir, 0).x;
         // }
         var inflow=dot(ff2.xy,-vec2<f32>(dir));
-        inflow+=(ff-textureLoad(pressure, coord, 0).x)*2.0;
+        inflow+=(ff-textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x)*2.0;
        
         fl.x+=inflow/2.0;
         // fl.x+=ff;
