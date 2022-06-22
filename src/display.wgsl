@@ -66,8 +66,17 @@ fn sampleP(coord: vec2<i32>, coordo: vec2<i32>) -> f32 {
 
 let BUMP = 3200.0;
 
+
+fn textureSampleSmooth(a: texture_2d<f32>, uv: vec2<f32>,mip:i32) -> vec4<f32> {
+    var inn = uv;
+    var tl = vec2<i32>(floor(inn));
+    var br = vec2<i32>(floor(inn) + 1.0);
+    return (textureLoad(a, tl.xy, mip) * (f32(br.x) - inn.x) + textureLoad(a, vec2<i32>(br.x, tl.y), mip) * (inn.x - f32(tl.x))) * (f32(br.y) - inn.y) + 
+      (textureLoad(a,vec2<i32>(tl.x, br.y), mip) * (f32(br.x) - inn.x) + textureLoad(a, br.xy, mip) * (inn.x - f32(tl.x))) * (inn.y - f32(tl.y)
+    );
+}
 fn D(uv:vec2<f32>,d:vec2<f32>,mip:i32) -> f32 {
-    return -textureLoad(pressure, vec2<i32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x*100.0;
+    return textureSampleSmooth(pressure, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x*10.0;
 }
 
 fn diff( uv:vec2<f32>,  mip: i32) -> vec2<f32> {
@@ -190,12 +199,13 @@ fn light(uv:vec2<f32>, BUMP:f32, SRC_DIST:f32, dxy:vec2<f32>, iTime:f32,  avd:ve
 @fragment
 fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     var uv = fragCoord.xy / vec2<f32>(u.resolution.xy) * pow(0.5, f32(u.downsample));
- var ppD = textureLoad(dye, vec2<i32>(uv.xy * vec2<f32>(u.resolution.xy)), 0).xyz;
-    var ppV = textureLoad(velocity, vec2<i32>(fragCoord.xy * pow(0.5, f32(u.downsample))), 0).xy;
+    var coord = vec2<i32>(uv.xy * vec2<f32>(u.resolution.xy));
+ var ppD = textureSampleSmooth(dye, vec2<f32>(uv.xy * vec2<f32>(u.resolution.xy)), 0).xyz;
+    var ppV = textureSampleSmooth(velocity, vec2<f32>(fragCoord.xy * pow(0.5, f32(u.downsample))), 0).xy;
     var exists = existe(vec2<i32>(uv.xy * vec2<f32>(u.resolution.xy)));
-    if (exists < 1.0) {
-        return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    }
+    // if (exists < 1.0) {
+    //     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    // }
     var dxy = vec2<f32>(0);
     var occ=0.0;
     var mip = 0;
@@ -203,13 +213,15 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // blur the gradient to reduce appearance of artifacts,
     // and do cheap occlusion with mipmaps
-    let  STEPS= 1;
+    let  STEPS= 10;
     let  ODIST= 2.0;
     for(mip = 1; mip <= STEPS; mip += 1) {	 
-        dxy += (1.0/pow(2.0,f32(mip))) * diff(uv, mip - 1);	
+        if(mip==1){
+        dxy += (1.0/pow(2.0,f32(mip))) * diff(uv, mip - 1);
+        }	
     	occ += softclamp(0.0 - ODIST, ODIST, d - D(uv,vec2<f32>(0.0), mip), 1.0) / (pow(1.5, f32(mip)));
     }
-    dxy /= f32(STEPS);
+    // dxy /= f32(STEPS);
     
     // I think this looks nicer than using smoothstep
     occ = pow(max(0.0,softclamp(0.2,0.8,100.0*occ + 0.5,1.0)),0.5);
@@ -219,16 +231,32 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     avd=ldq.avd;
     
     var spec = ggx(avd, vec3(0,1,0), ld, 0.1, 0.1);
-    
     let LOG_SPEC =1000.0;
     spec = (log(LOG_SPEC+1.0)/LOG_SPEC)*log(1.0 + LOG_SPEC * spec);    
     
     var diffuse =vec4<f32>(ppD,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
-    diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, length(vec2<f32>(ppV.y, ppV.x) )/ 60.0)),0.0)*0.01;
+    diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, 0.5*min(1.0,length(vec2<f32>(ppV.y, ppV.x) )/ 60.0))),0.0)*0.3;
     // diffuse=vec4<f32>(vec3<f32>(-d/100.0),1.0);
     
-    var fragColor = (diffuse + 4.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.3));
+    var fragColor = (diffuse + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.3));
     fragColor = mix(1.0,occ,0.7) * (softclamp42(0.0,1.0,contrast(fragColor,4.5),3.0));
+
+    // var dir = vec2<i32>(1, 0);
+    // var fl=vec2<f32>(0.0);
+    // for(var o=0;o<4;o+=1){
+
+        
+    //     var ff2 = textureLoad(velocity, coord+dir, 0).xy;//sampleVelocity(coord + dir,coord);
+    //     if(existe(coord + dir)<1.0){
+    //         ff2=-textureLoad(velocity, coord, 0).xy;
+    //     }
+      
+    //     var inflow=dot(ff2.xy,-vec2<f32>(dir));
+       
+    //     fl.x+=inflow/2.0;
+    //     dir=vec2<i32>(-dir.y, dir.x);
+    // }
+    // fragColor=vec4<f32>(abs(d/10.0));
     return fragColor;
     //fragColor = vec4(occ);
     //fragColor = vec4(spec);

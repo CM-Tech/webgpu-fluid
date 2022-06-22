@@ -9,10 +9,10 @@ fn sampleVelocity(coord: vec2<i32>,coordo: vec2<i32>) -> vec3<f32> {
    
     var exists = existe(coord);
     var q = textureLoad(velocity, coord, 0).xy;
-    if(exists<1.0){
-q=-textureLoad(velocity, coordo, 0).xy;
-    }
-    exists = 1.0;
+//     if(exists<1.0){
+// q=-textureLoad(velocity, coordo, 0).xy;
+//     }
+    // exists = 1.0;
     return vec3<f32>(q*exists , exists);
 }
 

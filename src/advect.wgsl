@@ -16,21 +16,21 @@ struct Output {
     @location(1) velocity: vec2<f32>,
 }
 
-fn textureLoadFalloof(a: texture_2d<f32>, coord: vec2<i32>) -> vec4<f32> {
+fn textureLoadFalloof(a: texture_2d<f32>, coord: vec2<i32>, e:f32) -> vec4<f32> {
     var exists = existe(coord);
     var q = textureLoad(a, coord, 0);
-    return q * exists;
+    return q * (1.0 - abs(exists - e));
 }
 
-fn textureSampleSmooth(a: texture_2d<f32>, uvv: vec2<f32>) -> vec4<f32> {
+fn textureSampleSmooth(a: texture_2d<f32>, uvv: vec2<f32>, e:f32) -> vec4<f32> {
     var uv = uvv;
-    var exists = existe(vec2<i32>(uv));
+    // var exists = existe(vec2<i32>(uv));
     var inn = uv - 0.5;
     var tl = vec2<i32>(floor(inn));
     var br = vec2<i32>(floor(inn) + 1.0);
-    return exists * (
-        (textureLoadFalloof(a, tl.xy) * (f32(br.x) - inn.x) + textureLoadFalloof(a, vec2<i32>(br.x, tl.y)) * (inn.x - f32(tl.x))) * (f32(br.y) - inn.y) + // newline
-        (textureLoadFalloof(a, vec2<i32>(tl.x, br.y)) * (f32(br.x) - inn.x) + textureLoadFalloof(a, br.xy) * (inn.x - f32(tl.x))) * (inn.y - f32(tl.y))
+    return  (
+        (textureLoadFalloof(a, tl.xy,e) * (f32(br.x) - inn.x) + textureLoadFalloof(a, vec2<i32>(br.x, tl.y),e) * (inn.x - f32(tl.x))) * (f32(br.y) - inn.y) + // newline
+        (textureLoadFalloof(a, vec2<i32>(tl.x, br.y),e) * (f32(br.x) - inn.x) + textureLoadFalloof(a, br.xy,e) * (inn.x - f32(tl.x))) * (inn.y - f32(tl.y))
     );
 }
 
@@ -39,15 +39,16 @@ fn advect(@builtin(position) coords: vec4<f32>) -> Output {
     var coord = vec2<i32>(coords.xy - 0.5);
     var pos = coords.xy - timestep * textureLoad(velocity, vec2<i32>(coord), 0).xy;
     var posD = coords.xy - timestep * textureLoad(velocity, vec2<i32>(coord), 0).xy;
-    var startDye = textureSampleSmooth(dye, posD);
-    var startVelocity = textureSampleSmooth(velocity, pos).xy;
+    var exists = existe(coord);
+    var startDye = textureSampleSmooth(dye, posD,exists);
+    var startVelocity = textureSampleSmooth(velocity, pos,exists).xy;
     var out: Output;
     out.dye = ((color - startDye) * (1.0 - pow(dyeDissipation, timestep)) + startDye);
     out.velocity = startVelocity * pow(velocityDissipation, timestep);
-    var exists = existe(coord);
-    out.velocity *= exists;
-    if (exists < 1.0) {
-        out.dye = vec4<f32>(1.0);
-    }
+    // var exists = existe(coord);
+    // out.velocity *= exists;
+    // if (exists < 1.0) {
+    //     out.dye = vec4<f32>(1.0);
+    // }
     return out;
 }

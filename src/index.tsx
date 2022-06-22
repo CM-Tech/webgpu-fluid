@@ -21,6 +21,7 @@ import commonWGSL from "./common.wgsl?raw";
 import splatWGSL from "./splat.wgsl?raw";
 import { createEventListener } from "@solid-primitives/event-listener";
 import "./index.css";
+import { createControls } from "solid-leva";
 
 const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
   return {
@@ -60,6 +61,7 @@ function HSVtoRGB(h: number, s: number, v: number) {
   };
 }
 const DOWNSAMPLE = 0;
+// const J_DOWNSAMPLE = 3;
 type VelTouch = {
   identifier: number;
   time: number;
@@ -74,7 +76,9 @@ type GPUProgram = (props: {
   device: GPUDevice;
   context: GPUCanvasContext;
 }) => void;
+let lastH=Math.random();
 const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
+  const cont = createControls({ pressureSolverIterations: 100 });
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   const vertShader = device.createShaderModule({
     code: "\n" + vertWGSL,
@@ -164,6 +168,20 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
+  const float2Layout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
   const gradientLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -241,7 +259,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       entryPoint: "jacobi",
       targets: [{ format: "r32float" }],
     },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout, floatLayout] }),
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, float2Layout, floatLayout] }),
   });
   const gradientPipeline = device.createRenderPipeline({
     ...defaultPipeline,
@@ -332,14 +350,16 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       previous: { time: Date.now(), x: touch.clientX >> DOWNSAMPLE, y: touch.clientY >> DOWNSAMPLE },
       uniform: makeUniformsPerTouch(),
     };
-    var mi = HSVtoRGB(Math.random(), 1, Math.random());
+    lastH=(lastH*((Math.sqrt(5)+1)/2))%1;
+    var mi = HSVtoRGB(Math.random(), 0.5, 0.5);
+    var  kkl=lastH*1.5+1.0;
     device.queue.writeBuffer(
       m.uniform,
       0 << 2,
       new Float32Array([
-        (mi.r / 255) * 1.5 + 0.5,
-        (mi.g / 255) * 1.5 + 0.5,
-        (mi.b / 255) * 1.5 + 0.5,
+        (mi.r / 255)*kkl,
+        (mi.g / 255)*kkl,
+        (mi.b / 255)*kkl,
         1,
         m.x,
         m.y,
@@ -443,10 +463,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const displayBindGroup = device.createBindGroup({
     layout: displayMainLayout,
     entries: [{ binding: 0, resource: { buffer: displayUniforms } }],
-  });
-  const divergenceReadGroup = device.createBindGroup({
-    layout: floatLayout,
-    entries: [{ binding: 0, resource: divergenceTex().createView() }],
   });
 
   let animation: number;
@@ -581,8 +597,13 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
     }
+    
+  const divergenceReadGroup = device.createBindGroup({
+    layout: float2Layout,
+    entries: [{ binding: 0, resource: divergenceTex().createView() },{ binding: 1, resource:velocity.read.createView() }],
+  });
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < cont.pressureSolverIterations; i++) {
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {

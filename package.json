@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@solid-primitives/event-listener": "^2.2.0",
-    "solid-js": "^1.4.4"
+    "solid-js": "^1.4.4",
+    "solid-leva": "^0.0.2"
   }
 }
