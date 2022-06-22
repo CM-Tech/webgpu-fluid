@@ -60,7 +60,7 @@ function HSVtoRGB(h: number, s: number, v: number) {
     b: Math.round(b * 255),
   };
 }
-const DOWNSAMPLE = 0;
+const DOWNSAMPLE = 1;
 // const J_DOWNSAMPLE = 3;
 type VelTouch = {
   identifier: number;
@@ -350,9 +350,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       previous: { time: Date.now(), x: touch.clientX >> DOWNSAMPLE, y: touch.clientY >> DOWNSAMPLE },
       uniform: makeUniformsPerTouch(),
     };
-    lastH=(lastH*((Math.sqrt(5)+1)/2))%1;
-    var mi = HSVtoRGB(Math.random(), 0.5, 0.5);
-    var  kkl=lastH*1.5+1.0;
+    lastH=(lastH+((Math.sqrt(5)+1)/2))%1;
+    var mi = HSVtoRGB(lastH, 1, 0.5);
+    var  kkl=Math.random()*1.5+1.0;
     device.queue.writeBuffer(
       m.uniform,
       0 << 2,

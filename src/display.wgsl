@@ -234,11 +234,15 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     let LOG_SPEC =1000.0;
     spec = (log(LOG_SPEC+1.0)/LOG_SPEC)*log(1.0 + LOG_SPEC * spec);    
     
-    var diffuse =vec4<f32>(ppD,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
-    diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, 0.5*min(1.0,length(vec2<f32>(ppV.y, ppV.x) )/ 60.0))),0.0)*0.3;
+    var diffuse =vec4<f32>(ppD+0.25,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
+    diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, 0.5*min(1.0,length(vec2<f32>(ppV.y, ppV.x) )/ 60.0))),0.0)*0.0;
+    // if (exists < 1.0) {
+    //     return vec4<f32>(vec3<f32>(0.0),1.0);
+    //     diffuse=vec4<f32>(vec3<f32>(0.25),1.0);
+    // }
     // diffuse=vec4<f32>(vec3<f32>(-d/100.0),1.0);
     
-    var fragColor = (diffuse + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.3));
+    var fragColor = (diffuse*0.2/2.0 + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.93))*10.0;
     fragColor = mix(1.0,occ,0.7) * (softclamp42(0.0,1.0,contrast(fragColor,4.5),3.0));
 
     // var dir = vec2<i32>(1, 0);
