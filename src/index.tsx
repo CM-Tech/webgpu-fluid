@@ -475,7 +475,7 @@ const GPUProgram = (props:{
     "keydown",
     (e: KeyboardEvent) => {
       e.preventDefault();
-      if(e.shiftKey){
+      if(e.key.includes("Shift")){
         shift=true;
       }
     },
@@ -485,7 +485,7 @@ const GPUProgram = (props:{
     window,
     "keyup",
     (e: KeyboardEvent) => {
-      if(e.key==="Shift"){
+      if(e.key.includes("Shift")){
         shift=false;
       }
     },
