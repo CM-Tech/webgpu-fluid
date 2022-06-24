@@ -76,7 +76,7 @@ fn textureSampleSmooth(a: texture_2d<f32>, uv: vec2<f32>,mip:i32) -> vec4<f32> {
     );
 }
 fn D(uv:vec2<f32>,d:vec2<f32>,mip:i32) -> f32 {
-    return textureSampleSmooth(pressure, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x;//*length(textureSampleSmooth(dye, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xyz);
+    return textureSampleSmooth(pressure, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x;//*length(textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xy);
 }
 
 fn diff( uv:vec2<f32>,  mip: i32) -> vec2<f32> {
@@ -216,12 +216,12 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     let  STEPS= 10;
     let  ODIST= 2.0;
     for(mip = 1; mip <= STEPS; mip += 1) {	 
-        if(mip==1){
+        // if(mip==1){
         dxy += (1.0/pow(2.0,f32(mip))) * diff(uv, mip - 1);
-        }	
+        // }	
     	occ += softclamp(0.0 - ODIST, ODIST, d - D(uv,vec2<f32>(0.0), mip), 1.0) / (pow(1.5, f32(mip)));
     }
-    // dxy /= f32(STEPS);
+    dxy /= f32(STEPS);
     
     // I think this looks nicer than using smoothstep
     occ = pow(max(0.0,softclamp(0.2,0.8,100.0*occ + 0.5,1.0)),0.5);
@@ -244,7 +244,7 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     }
     // diffuse=vec4<f32>(vec3<f32>(-d/100.0),1.0);
     
-    var fragColor = (diffuse*0.2/2.0 + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.93))*10.0;
+    var fragColor = (diffuse*0.2/2.0 + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.8))*10.0;
     fragColor = mix(1.0,occ,0.7) * (softclamp42(0.0,1.0,contrast(fragColor,4.5),3.0));
 
     // var dir = vec2<i32>(1, 0);
