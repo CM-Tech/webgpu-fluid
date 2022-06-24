@@ -474,7 +474,7 @@ const GPUProgram = (props:{
     window,
     "keydown",
     (e: KeyboardEvent) => {
-      e.preventDefault();
+      // e.preventDefault();
       if(e.key.includes("Shift")){
         shift=true;
       }
