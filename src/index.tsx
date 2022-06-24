@@ -22,7 +22,8 @@ import splatWGSL from "./splat.wgsl?raw";
 import { createEventListener } from "@solid-primitives/event-listener";
 import "./index.css";
 import { createControls,LevaPanel, levaStore } from "solid-leva";
-import { createStore, StoreSetter } from "solid-js/store";
+import { createStore, Store, StoreSetter } from "solid-js/store";
+import { config } from "process";
 
 const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
   return {
@@ -71,7 +72,7 @@ type VelTouch = {
   previous: { time: number; x: number; y: number };
   uniform: GPUBuffer;
 };
-type Config={ pressureSolverIterations: number,color:{r:number,g:number,b:number} };
+type Config={ pressureSolverIterations: number,color:{r:number,g:number,b:number},paused:boolean };
 // type GPUProgram = (props: {
 //   width: number;
 //   height: number;
@@ -468,6 +469,28 @@ const GPUProgram = (props:{
     },
     { passive: false }
   );
+  var shift=false;
+  createEventListener(
+    window,
+    "keydown",
+    (e: KeyboardEvent) => {
+      e.preventDefault();
+      if(e.shiftKey){
+        shift=true;
+      }
+    },
+    { passive: false }
+  );
+  createEventListener(
+    window,
+    "keyup",
+    (e: KeyboardEvent) => {
+      if(e.key==="Shift"){
+        shift=false;
+      }
+    },
+    { passive: false }
+  );
   createEventListener(window, "touchend", ({ changedTouches }: TouchEvent) => {
     destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
     for (let i = 0; i < changedTouches.length; i++) destroyTouch(changedTouches[i]);
@@ -490,7 +513,8 @@ const GPUProgram = (props:{
   let animation: number;
   const frame = () => {
     const commandEncoder = props.device.createCommandEncoder();
-
+    var sPause=(touches.length===0) && shift;
+    var pau=((touches.length===0) && props.config.paused) || sPause;
     for (const mouse of touches) {
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
@@ -529,12 +553,13 @@ const GPUProgram = (props:{
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
-
+      if(!shift){
       dye.swap();
+      }
       velocity.swap();
     }
 
-    {
+    if(!pau){
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -652,7 +677,7 @@ const GPUProgram = (props:{
       pressure.swap();
     }
 
-    {
+    if(!pau){
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -681,7 +706,7 @@ const GPUProgram = (props:{
       velocity.swap();
     }
 
-    {
+    if(!pau) {
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -754,7 +779,7 @@ const App = () => {
   const [context,setContext] = createSignal<GPUCanvasContext>();
   const [device,setDevice] = createSignal<GPUDevice>();
   
-  const [config,setConfigf]=createStore({ pressureSolverIterations: 100,color:{r:1,g:1,b:1} })
+  const [config,setConfigf]=createStore({ pressureSolverIterations: 100,color:{r:1,g:1,b:1},paused:false })
   let did=false;
   const setConfig=(...args)=>{var v=setConfigf(...args);
     document.querySelector("#leva__root")?.remove();
@@ -766,7 +791,7 @@ const App = () => {
     }catch(e){
     console.log("E".e)
     }
-    setControls(createControls({ pressureSolverIterations: config.pressureSolverIterations,color:{...config.color} }));
+    setControls(createControls({ pressureSolverIterations: config.pressureSolverIterations,color:{...config.color},paused:config.paused }));
     // did=false;
     // levaStore.subscribeToEditStart("color",()=>{
     //   console.log("YEE")
@@ -775,7 +800,7 @@ const App = () => {
     // )
     // setControls(createControls({pressureSolverIterations:config.pressureSolverIterations,color:config.color}));
     return v};
-  const [controls,setControls] = createSignal(createControls({ pressureSolverIterations: config.pressureSolverIterations,color:{...config.color} }));
+  const [controls,setControls] = createSignal(createControls({ pressureSolverIterations: config.pressureSolverIterations,color:{...config.color},paused:config.paused }));
 
   // createEffect(()=>{
   //   console.log("C",{...controls().color});
