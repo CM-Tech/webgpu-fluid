@@ -1,13 +1,13 @@
 struct Uniforms {
     resolution: vec2<i32>,
+    timestep: f32
 };
 @group(0) @binding(0) var<uniform> u : Uniforms;
 
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 
 let EPSILON = 2.4414e-4; // 2^-12
-let timestep = 0.016666;
-let curlAmount = 4.0;
+let curlAmount = 2.0;
 
 fn curl(coords: vec2<i32>) -> f32 {
     var L = textureLoad(velocity, coords - vec2<i32>(1, 0), 0).y;
@@ -33,5 +33,5 @@ fn vorticity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
     force *= curlAmount * vC / max(length(force), EPSILON);
 
     var vel = textureLoad(velocity, coord, 0).xy;
-    return vel + timestep * force;
+    return vel + u.timestep * force;
 }

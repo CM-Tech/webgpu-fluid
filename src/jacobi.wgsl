@@ -8,60 +8,39 @@ struct Uniforms {
 
 @group(2) @binding(0) var pressure : texture_2d<f32>;
 
-fn textureLoadFalloof(a: texture_2d<f32>, coord: vec2<i32>, coordo: vec2<i32>) -> vec2<f32> {
-    var exists = existe((coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
-    var q = textureLoad(a, (coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
-    var q2 = textureLoad(a, (coordo % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
-    return vec2<f32>(q * exists + (1.0 - exists )*q2, exists + (1.0 - exists ));
-}
-fn sampleVelocity(coord: vec2<i32>,coordo: vec2<i32>) -> vec3<f32> {
-   
-    var exists = existe((coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
-    var q = textureLoad(velocity, (coord % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;
-//     if(exists<1.0){
-// q=-textureLoad(velocity, coordo, 0).xy;
-//     }
-    // exists = 1.0;
-    return vec3<f32>(q*exists , exists);
-}
-fn inflow(coords: vec2<f32>) -> f32 {
-    var uv = vec2<i32>(coords.xy);
-    var C = sampleVelocity(uv - vec2<i32>(0, 0),uv).xz;
-    var L = sampleVelocity(uv - vec2<i32>(1, 0),uv).xz;
-    var R = sampleVelocity(uv + vec2<i32>(1, 0),uv).xz;
-    R.x = -R.x;
-    var T = sampleVelocity(uv - vec2<i32>(0, 1),uv).yz;
-    var B = sampleVelocity(uv + vec2<i32>(0, 1),uv).yz;
-    B.x = -B.x;
 
-    var Q = L + T + R + B;
-    var dd=4.0-Q.y;
-    if(C.y >0.0){
-        // Q.y+=C.y*dd;
-        
+
+
+fn sampleP(coord: vec2<i32>, coordo: vec2<i32>,exists2:f32) -> f32 {
+    var exists = existe(((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var q = textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
+    if (exists !=exists2) {
+        q = textureLoad(pressure, ((coordo) % u.resolution.xy+u.resolution.xy)% u.resolution.xy , 0).x;
     }
-    if (Q.y < 1.0) {
-        return 0.0; 
-    }
-    return Q.x;
+    return q;
 }
 
+fn gradient(uv: vec2<i32>) ->  vec2<f32> {
+    var e=existe((vec2<i32>(uv)% u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var pL = sampleP(uv - vec2<i32>(1, 0), uv + vec2<i32>(0, 0),e);
+    var pR = sampleP(uv + vec2<i32>(1, 0), uv - vec2<i32>(0, 0),e);
+    var pB = sampleP(uv + vec2<i32>(0, 1), uv - vec2<i32>(0, 0),e);
+    var pT = sampleP(uv - vec2<i32>(0, 1), uv + vec2<i32>(0, 0),e);
+    var pC = sampleP(uv - vec2<i32>(0, 0), uv + vec2<i32>(0, 0),e);
+    var v = textureLoad(velocity, (uv% u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;
+    var exists = 1.0;//existe(vec2<i32>(uv));
+    return exists * (v - vec2<f32>(pR - pL, pB - pT));
+}
 
 @fragment
 fn jacobi(@builtin(position) coords: vec4<f32>) -> @location(0) f32 {
     var coord = vec2<i32>(coords.xy);
     // left, right, bottom, and top pressure samples
-    var L = textureLoadFalloof(pressure, coord - vec2<i32>(1, 0),coord );
-    var R = textureLoadFalloof(pressure, coord + vec2<i32>(1, 0),coord );
-    var B = textureLoadFalloof(pressure, coord + vec2<i32>(0, 1),coord );
-    var T = textureLoadFalloof(pressure, coord - vec2<i32>(0, 1),coord );
+    
 
-    var bC = inflow(coords.xy);
     var C = textureLoad(pressure, coord, 0).x;
 
     // evaluate Jacobi iteration
-    var sum = L + R + B + T;
-    var dd = 4.0 - sum.y;
     // sum.x += C * dd;
     // sum.y += dd;
     // if (sum.y < 1.0 || existe(coord)<1.0) {
@@ -72,25 +51,40 @@ fn jacobi(@builtin(position) coords: vec4<f32>) -> @location(0) f32 {
     // }
     var dir = vec2<i32>(1, 0);
     var fl=vec2<f32>(0.0);
+    var currentInflow=0.0;
+    var wantInflow=0.0;
+    // var curV=gradient(coord);
+    var tot=0.0;
+    fl.x=textureLoad(divergence, (coord% u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x/2.0;
     for(var o=0;o<4;o+=1){
 
-        var ff= textureLoad(pressure, ((coord+dir) % u.resolution.xy+u.resolution.xy)% u.resolution.xy,0 ).x;
-        var ff2 = textureLoad(velocity, ((coord+dir) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;//sampleVelocity(coord + dir,coord);
+        var ff= textureLoad(pressure, ((coord + (dir )) % u.resolution.xy+u.resolution.xy)% u.resolution.xy,0 ).x;
+      //  var ff2 =( textureLoad(velocity, ((coord + dir) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy + textureLoad(velocity, ((coord ) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy)/2.0;//(gradient( ((coord+dir) % u.resolution.xy+u.resolution.xy)% u.resolution.xy).xy+gradient( ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy).xy)/2.0;//sampleVelocity(coord + dir,coord);
+        //var inflow=dot(ff2.xy,-vec2<f32>(dir));
         if(existe(coord + dir)!=existe(coord )){
-            ff2=-textureLoad(velocity, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;
+           // ff2=-textureLoad(velocity, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;
             ff=textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
+            
+            // inflow=dot(ff2.xy,-vec2<f32>(dir));
+            // currentInflow+=0.0;//inflow;
+            // wantInflow+=inflow;
+            
+        }else{
+          //  currentInflow+=inflow;
+           // wantInflow+=0.0;
+           // tot+=1.0;
         }
         // if(existe(coord )<1.0 && o==0){
         //     ff2=textureLoad(velocity, coord + dir, 0).xy*0.0;
         //     ff=textureLoad(pressure, coord + dir, 0).x;
         // }
-        var inflow=dot(ff2.xy,-vec2<f32>(dir));
-        inflow+=(ff-textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x)*2.0;
+        //inflow=dot(ff2.xy,-vec2<f32>(dir))/2.0;
+        var inflow=(ff-textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x);
        
-        fl.x+=inflow/2.0;
-        // fl.x+=ff;
+        fl.x+=inflow;
+        // // fl.x+=ff;
 
         dir=vec2<i32>(-dir.y, dir.x);
     }
-    return C+( fl.x)/ 4.0;//(sum.x + bC/2.0) / sum.y;
+    return (C + ( (currentInflow - wantInflow)*0.0 + fl.x)/4.0)*0.99999;//(sum.x + bC/2.0) / sum.y;
 }

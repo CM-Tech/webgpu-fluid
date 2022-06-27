@@ -24,6 +24,7 @@ fn gradient(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
     var pR = sampleP(uv + vec2<i32>(1, 0), uv - vec2<i32>(0, 0),e);
     var pB = sampleP(uv + vec2<i32>(0, 1), uv - vec2<i32>(0, 0),e);
     var pT = sampleP(uv - vec2<i32>(0, 1), uv + vec2<i32>(0, 0),e);
+    var pC = sampleP(uv - vec2<i32>(0, 0), uv + vec2<i32>(0, 0),e);
     var v = textureLoad(velocity, uv, 0).xy;
     var exists = 1.0;//existe(vec2<i32>(uv));
     return exists * (v - vec2<f32>(pR - pL, pB - pT));

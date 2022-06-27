@@ -49,6 +49,11 @@ fn splat(@builtin(position) coords: vec4<f32>) -> Output {
     var coord = vec2<i32>(coords.xy);
     var p = coords.xy - closestPoint(touch.point, touch.oldPoint, coords.xy);
     var strength = exp(-dot(p, p) / radius);
+    // if(strength>0.5){
+    //     strength=1.0;
+    // }else{
+    //     strength=0.0;
+    // }
     var dyeBase = textureLoad(dye, coord, 0).rgb;
     var velocityBase = textureLoad(velocity, coord, 0).xy;
     var out: Output;

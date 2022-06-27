@@ -13,6 +13,7 @@ import vertWGSL from "./vert.wgsl?raw";
 import displayWGSL from "./display.wgsl?raw";
 import advectWGSL from "./advect.wgsl?raw";
 import clearWGSL from "./clear.wgsl?raw";
+import clear2WGSL from "./clear2.wgsl?raw";
 import divergenceWGSL from "./divergence.wgsl?raw";
 import jacobiWGSL from "./jacobi.wgsl?raw";
 import gradientWGSL from "./gradient.wgsl?raw";
@@ -62,7 +63,7 @@ function HSVtoRGB(h: number, s: number, v: number) {
     b: Math.round(b * 255),
   };
 }
-const DOWNSAMPLE = 1;
+const DOWNSAMPLE = 0;
 // const J_DOWNSAMPLE = 3;
 type VelTouch = {
   identifier: number;
@@ -105,6 +106,8 @@ const GPUProgram = (props:{
   });
   const clearShader = props.device.createShaderModule({
     code: "\n" + clearWGSL,
+  }); const clearShader2 = props.device.createShaderModule({
+    code: "\n" + clear2WGSL,
   });
   const divergenceShader = props.device.createShaderModule({
     code: commonWGSL + "\n" + divergenceWGSL,
@@ -257,6 +260,15 @@ const GPUProgram = (props:{
     },
     layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
   });
+  const clearPipeline2 = props.device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: clearShader2,
+      entryPoint: "clear",
+      targets: [{ format: "r32float" }],
+    },
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
+  });
   const divergencePipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
@@ -336,7 +348,7 @@ const GPUProgram = (props:{
   const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
 
   const uniforms = props.device.createBuffer({
-    size: 2 << 2,
+    size: 3 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
@@ -366,7 +378,7 @@ const GPUProgram = (props:{
     };
     lastH=(lastH+((Math.sqrt(5)+1)/2))%1;
     var mi = props.config.color;
-    props.setConfig("color",HSVtoRGB(Math.random(), Math.random(),Math.random()));
+    props.setConfig("color",HSVtoRGB(Math.random(), (Math.random()>1/4?1:0.0)/2+Math.random()*0.5,Math.random()>1/6?1:0.0));
     var  kkl=1.0;//Math.random();//*1.5+1.0;
     props.device.queue.writeBuffer(
       m.uniform,
@@ -511,7 +523,12 @@ const GPUProgram = (props:{
   });
 
   let animation: number;
+  let lastDate=new Date();
   const frame = () => {
+    let meDate=new Date();
+    let dt=Math.min((+meDate-+lastDate)/1000,1/10);
+    props.device.queue.writeBuffer(uniforms, 2 << 2, new Float32Array([dt]));
+    lastDate=meDate;
     const commandEncoder = props.device.createCommandEncoder();
     var sPause=(touches.length===0) && shift;
     var pau=((touches.length===0) && props.config.paused) || sPause;
@@ -559,6 +576,127 @@ const GPUProgram = (props:{
       velocity.swap();
     }
 
+    
+
+    // {
+    //   const passEncoder = commandEncoder.beginRenderPass({
+    //     colorAttachments: [
+    //       {
+    //         view: pressure.write.createView(),
+    //         clearValue: { r: 1, g: 1, b: 1, a: 1 },
+    //         storeOp: "store",
+    //         loadOp: "clear",
+            
+    //       },
+    //     ],
+    //   });
+    //   passEncoder.setPipeline(clearPipeline2);
+    //   passEncoder.setBindGroup(0, mainBindGroup);
+    //   passEncoder.setBindGroup(
+    //     1,
+    //     props.device.createBindGroup({
+    //       layout: floatLayout,
+    //       entries: [{ binding: 0, resource: pressure.read.createView() }],
+    //     })
+    //   );
+    //   passEncoder.draw(4, 1, 0, 0);
+    //   passEncoder.end();
+
+    //   pressure.swap();
+    // }
+
+
+     
+    // }
+
+
+      for(let igg=0;igg<1.0;igg+=1){
+        
+    {
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: divergenceTex().createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          },
+        ],
+      });
+      passEncoder.setPipeline(divergencePipeline);
+      passEncoder.setBindGroup(0, mainBindGroup);
+      passEncoder.setBindGroup(
+        1,
+        props.device.createBindGroup({
+          layout: floatLayout,
+          entries: [{ binding: 0, resource: velocity.read.createView() }],
+        })
+      );
+      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.end();
+    }
+    
+  const divergenceReadGroup = props.device.createBindGroup({
+    layout: float2Layout,
+    entries: [{ binding: 0, resource: divergenceTex().createView() },{ binding: 1, resource:velocity.read.createView() }],
+  });
+    for (let i = 0; i < props.config.pressureSolverIterations; i++) 
+        {
+          const passEncoder = commandEncoder.beginRenderPass({
+            colorAttachments: [
+              {
+                view: pressure.write.createView(),
+                clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+                storeOp: "store",
+                loadOp: "clear",
+              },
+            ],
+          });
+          passEncoder.setPipeline(jacobiPipeline);
+          passEncoder.setBindGroup(0, mainBindGroup);
+          passEncoder.setBindGroup(1, divergenceReadGroup);
+          passEncoder.setBindGroup(
+            2,
+            props.device.createBindGroup({
+              layout: floatLayout,
+              entries: [{ binding: 0, resource: pressure.read.createView() }],
+            })
+          );
+          passEncoder.draw(4, 1, 0, 0);
+          passEncoder.end();
+    
+          pressure.swap();
+        }
+        
+    if(!pau){
+      if(!pau){
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: velocity.write.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            storeOp: "store",
+            loadOp: "clear",
+          },
+        ],
+      });
+      passEncoder.setPipeline(gradientPipeline);
+      passEncoder.setBindGroup(0, mainBindGroup);
+      passEncoder.setBindGroup(
+        1,
+        props.device.createBindGroup({
+          layout: gradientLayout,
+          entries: [
+            { binding: 0, resource: pressure.read.createView() },
+            { binding: 1, resource: velocity.read.createView() },
+          ],
+        })
+      );
+      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.end();
+
+      velocity.swap();
+    }
     if(!pau){
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
@@ -593,118 +731,9 @@ const GPUProgram = (props:{
 
       dye.swap();
       velocity.swap();
+      }
     }
-
-    {
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: pressure.write.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
-        ],
-      });
-      passEncoder.setPipeline(clearPipeline);
-      passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(
-        1,
-        props.device.createBindGroup({
-          layout: floatLayout,
-          entries: [{ binding: 0, resource: pressure.read.createView() }],
-        })
-      );
-      passEncoder.draw(4, 1, 0, 0);
-      passEncoder.end();
-
-      pressure.swap();
-    }
-
-    {
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: divergenceTex().createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
-        ],
-      });
-      passEncoder.setPipeline(divergencePipeline);
-      passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(
-        1,
-        props.device.createBindGroup({
-          layout: floatLayout,
-          entries: [{ binding: 0, resource: velocity.read.createView() }],
-        })
-      );
-      passEncoder.draw(4, 1, 0, 0);
-      passEncoder.end();
-    }
-    
-  const divergenceReadGroup = props.device.createBindGroup({
-    layout: float2Layout,
-    entries: [{ binding: 0, resource: divergenceTex().createView() },{ binding: 1, resource:velocity.read.createView() }],
-  });
-
-    for (let i = 0; i < props.config.pressureSolverIterations; i++) {
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: pressure.write.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
-        ],
-      });
-      passEncoder.setPipeline(jacobiPipeline);
-      passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(1, divergenceReadGroup);
-      passEncoder.setBindGroup(
-        2,
-        props.device.createBindGroup({
-          layout: floatLayout,
-          entries: [{ binding: 0, resource: pressure.read.createView() }],
-        })
-      );
-      passEncoder.draw(4, 1, 0, 0);
-      passEncoder.end();
-
-      pressure.swap();
-    }
-
-    if(!pau){
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: velocity.write.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
-        ],
-      });
-      passEncoder.setPipeline(gradientPipeline);
-      passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(
-        1,
-        props.device.createBindGroup({
-          layout: gradientLayout,
-          entries: [
-            { binding: 0, resource: pressure.read.createView() },
-            { binding: 1, resource: velocity.read.createView() },
-          ],
-        })
-      );
-      passEncoder.draw(4, 1, 0, 0);
-      passEncoder.end();
-
-      velocity.swap();
-    }
+  }
 
     if(!pau) {
       const passEncoder = commandEncoder.beginRenderPass({

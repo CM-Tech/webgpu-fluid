@@ -34,14 +34,6 @@ fn hsv2rgb(c: vec3<f32>) -> vec3<f32> {
 }
 
 
-fn sampleP(coord: vec2<i32>, coordo: vec2<i32>) -> f32 {
-    var exists = existe(coord);
-    var q = textureLoad(pressure, coord, 0).x;
-    if (exists < 1.0) {
-        q = textureLoad(pressure, coordo, 0).x;
-    }
-    return q;
-}
 
 // @fragment
 // fn display(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
@@ -64,33 +56,39 @@ fn sampleP(coord: vec2<i32>, coordo: vec2<i32>) -> f32 {
 
 
 
-let BUMP = 3200.0;
+let BUMP = 1.0;
 
 
 fn textureSampleSmooth(a: texture_2d<f32>, uv: vec2<f32>,mip:i32) -> vec4<f32> {
     var inn = uv;
-    var tl = vec2<i32>(floor(inn));
-    var br = vec2<i32>(floor(inn) + 1.0);
+    var tl = (vec2<i32>(floor(inn))%vec2<i32>(u.resolution.xy)+vec2<i32>(u.resolution.xy))%vec2<i32>(u.resolution.xy);
+    var br = (vec2<i32>(floor(inn) + 1.0)%vec2<i32>(u.resolution.xy)+vec2<i32>(u.resolution.xy))%vec2<i32>(u.resolution.xy);
     return (textureLoad(a, tl.xy, mip) * (f32(br.x) - inn.x) + textureLoad(a, vec2<i32>(br.x, tl.y), mip) * (inn.x - f32(tl.x))) * (f32(br.y) - inn.y) + 
       (textureLoad(a,vec2<i32>(tl.x, br.y), mip) * (f32(br.x) - inn.x) + textureLoad(a, br.xy, mip) * (inn.x - f32(tl.x))) * (inn.y - f32(tl.y)
     );
 }
 fn D(uv:vec2<f32>,d:vec2<f32>,mip:i32) -> f32 {
-    return textureSampleSmooth(pressure, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).x;//*length(textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xy);
+    // return length(textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xy);
+    // return sin(dot(vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xy)*0.001);
+    var  vv=(textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xy);
+    var pp=textureSampleSmooth(pressure, (vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy))%vec2<f32>(u.resolution.xy)+vec2<f32>(u.resolution.xy))%vec2<f32>(u.resolution.xy), mip).x;
+    var nvv=gradient(vec2<i32>(uv));
+    return -1.0*0.1*(length(nvv-vv) );//*length(textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xy);
 }
 
-fn diff( uv:vec2<f32>,  mip: i32) -> vec2<f32> {
+fn diff( uv:vec2<f32>,  mip: i32) -> vec3<f32> {
     var texel = 1.0/vec2<f32>(u.resolution.xy);
     var t = f32(pow(2.0,f32(mip)))*vec4<f32>(texel, -texel.y, 0);
 
-    var d =    D(uv, t.ww,mip); var d_n =  D(uv, t.wy,mip); var d_e =  D(uv, t.xw,mip);
-    var d_s =  D(uv, t.wz,mip); var d_w =  D(uv,-t.xw,mip); var d_nw = D(uv,-t.xz,mip);
-    var d_sw = D(uv,-t.xy,mip); var d_ne = D(uv, t.xy,mip); var d_se = D( uv,t.xz,mip);
-    
-    return vec2<f32>(
-        0.5 * (d_e - d_w) + 0.25 * (d_ne - d_nw + d_se - d_sw),
-        0.5 * (d_n - d_s) + 0.25 * (d_ne + d_nw - d_se - d_sw)
-    );
+    var d =    D(uv, t.ww,mip); var d_n =  D(uv, t.wy,mip); var d_e =  D( uv, t.xw,mip);
+    var d_s =  D(uv, t.wz,mip); var d_w =  D(uv,-t.xw,mip); var d_nw = D( uv,-t.xz,mip);
+    var d_sw = D(uv,-t.xy,mip); var d_ne = D(uv, t.xy,mip); var d_se = D( uv, t.xz,mip);
+    var ddd=vec3<f32>(1.0,1.0,1.0);
+    return normalize(cross(vec3<f32>(t.xw*vec2<f32>(u.resolution.xy),d_e - d)*ddd,vec3<f32>(t.wz*vec2<f32>(u.resolution.xy),d_s - d)*ddd)).xyz;
+    // vec2<f32>(
+    //     0.5 * (d_e - d_w) + 0.25 * (d_ne - d_nw + d_se - d_sw),
+    //     0.5 * (d_n - d_s) + 0.25 * (d_ne + d_nw - d_se - d_sw)
+    // );
 }
 
 fn contrast(col:vec4<f32>,  x: f32) -> vec4<f32> {
@@ -182,7 +180,7 @@ struct LL {
     avd:vec3<f32>,
 };
 let iTime=0.0;
-fn light(uv:vec2<f32>, BUMP:f32, SRC_DIST:f32, dxy:vec2<f32>, iTime:f32,  avd:vec3<f32>) -> LL  {
+fn light(uv:vec2<f32>, BUMP:f32, SRC_DIST:f32, norm:vec3<f32>, iTime:f32,  avd:vec3<f32>) -> LL  {
     var sp = vec3<f32>(uv - 0.5, 0);
     var light = vec3<f32>(cos(iTime/2.0)*0.5, sin(iTime/2.0)*0.5, -SRC_DIST);
     var ld = light - sp;
@@ -190,11 +188,33 @@ fn light(uv:vec2<f32>, BUMP:f32, SRC_DIST:f32, dxy:vec2<f32>, iTime:f32,  avd:ve
     ld /= lDist;
     var l:LL;
     l.ld=ld;
-    l.avd = reflect(normalize(vec3<f32>(BUMP*dxy, -1.0)), vec3<f32>(0,1,0));
+    l.avd = reflect(normalize(norm), vec3<f32>(0,1,0));
     return l;
 }
 // End Shane's bumpmapping section
 
+
+fn sampleP(coord: vec2<i32>, coordo: vec2<i32>,exists2:f32) -> f32 {
+    var exists = existe(((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var q = textureLoad(pressure, ((coord) % u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).x;
+    if (exists !=exists2) {
+        q = textureLoad(pressure, ((coordo) % u.resolution.xy+u.resolution.xy)% u.resolution.xy , 0).x;
+    }
+    return q;
+}
+
+
+fn gradient(uv: vec2<i32>) ->  vec2<f32> {
+    var e=existe((vec2<i32>(uv)% u.resolution.xy+u.resolution.xy)% u.resolution.xy);
+    var pL = sampleP(uv - vec2<i32>(1, 0), uv + vec2<i32>(0, 0),e);
+    var pR = sampleP(uv + vec2<i32>(1, 0), uv - vec2<i32>(0, 0),e);
+    var pB = sampleP(uv + vec2<i32>(0, 1), uv - vec2<i32>(0, 0),e);
+    var pT = sampleP(uv - vec2<i32>(0, 1), uv + vec2<i32>(0, 0),e);
+    var pC = sampleP(uv - vec2<i32>(0, 0), uv + vec2<i32>(0, 0),e);
+    var v = textureLoad(velocity, (uv% u.resolution.xy+u.resolution.xy)% u.resolution.xy, 0).xy;
+    var exists = 1.0;//existe(vec2<i32>(uv));
+    return exists * (v - vec2<f32>(pR - pL, pB - pT));
+}
 
 @fragment
 fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
@@ -206,35 +226,72 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     // if (exists < 1.0) {
     //     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
     // }
-    var dxy = vec2<f32>(0);
+    var dxy = vec3<f32>(0);
     var occ=0.0;
     var mip = 0;
     var d   = D(uv, vec2<f32>(0.0), mip);
     
     // blur the gradient to reduce appearance of artifacts,
     // and do cheap occlusion with mipmaps
-    let  STEPS= 10;
-    let  ODIST= 2.0;
+    let  STEPS= 1;
+    let  ODIST= 0.0001;
     for(mip = 1; mip <= STEPS; mip += 1) {	 
-        // if(mip==1){
+        if(mip==1){
         dxy += (1.0/pow(2.0,f32(mip))) * diff(uv, mip - 1);
-        // }	
-    	occ += softclamp(0.0 - ODIST, ODIST, d - D(uv,vec2<f32>(0.0), mip), 1.0) / (pow(1.5, f32(mip)));
+        }	
     }
-    dxy /= f32(STEPS);
+    var mip2=1;
+    var wi=0.0;
+    var vis=0.0;
+    var spv=0.0;
+    let RA=3;
+    
+    // occ=D(uv,vec2<f32>(0.0), 0);//vis/wi;
+    // dxy=vec2<f32>(-1.0,0.0);
     
     // I think this looks nicer than using smoothstep
-    occ = pow(max(0.0,softclamp(0.2,0.8,100.0*occ + 0.5,1.0)),0.5);
+    // occ = pow(max(0.0,softclamp(0.2,0.8,100.0*occ + 0.5,1.0)),0.5);
     var avd:vec3<f32>;
-    var ldq: LL = light(uv, BUMP, 0.5, dxy, iTime, avd);
+    var ldq: LL = light(uv, BUMP, 0.5, normalize(dxy), iTime, avd);
     var ld=ldq.ld;
     avd=ldq.avd;
+
+    for(mip = -RA; mip <= RA; mip += 1) {	 
+        for(mip2 = -RA; mip2 <= RA; mip2 += 1) {	 
+        var jm=vec2<f32>(f32(mip),f32(mip2));
+        var lnnn=length(jm);
+        if(lnnn>0.0){
+        var kk=pow(2.0, lnnn);
+        var www=1.0/kk;
+            wi+=www;
+            var ang=atan2(max(D(uv,jm/vec2<f32>(u.resolution.xy), 0) - D(uv, vec2<f32>(0.0), 0),0.0) ,lnnn);
+            var val=pow(1.0-ang/atan2(1.0,0.0),0.25);// not sure what power should be
+            
+            vis+=www*val;
+            var lang=atan2(max(ld.z,0.0) ,length(ld.xy));
+            var poang=max(lang,ang);
+            
+val=max(0.0,-cos(lang - poang)*dot(normalize(ld.xy),normalize(vec3<f32>(jm,1.0).xy)));
+            spv+=www*pow(val,1.0);
+        // occ += max(0.0,min(1.0,0.5+0.0001*(D(uv, vec2<f32>(0.0), 0) - D(uv,jm/vec2<f32>(u.resolution.xy), 0))/lnnn))/kk/2.0;
+         
+         }// occ += 1.0+min((D(uv, vec2<f32>(0.0), 0) - D(uv,vec2<f32>(0.0,-f32(mip)), 0))/kk/4.0,0.0);
+        // occ += min((D(uv, vec2<f32>(0.0), 0) - D(uv,vec2<f32>(0.0,f32(mip)).yx, 0))/kk/4.0,0.0);
+        // occ += min((D(uv, vec2<f32>(0.0), 0) - D(uv,vec2<f32>(0.0,-f32(mip)).yx, 0))/kk/4.0,0.0);
+    	//softclamp(0.0 - ODIST, ODIST, d - D(uv,vec2<f32>(0.0), mip), 1.0) / (pow(1.5, f32(mip)));
+    }
+    }
+    // dxy /= f32(STEPS);
+    occ=0.1+occ/3.0;// - 1.0/(8.0-occ*8.0);
+    occ=vis/wi;
+    spv=spv/wi;
+   // spv=0.0;
     
-    var spec = ggx(avd, vec3(0,1,0), ld, 0.1, 0.1);
+    var spec = ggx(avd, vec3(0,1,0), ld, 0.2, 0.2)*pow(0.1/0.2,2.0);
     let LOG_SPEC =10.0;
     spec = (log(LOG_SPEC+1.0)/LOG_SPEC)*log(1.0 + LOG_SPEC * spec);    
     
-    var diffuse =vec4<f32>(ppD+0.25,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
+    var diffuse =vec4<f32>(ppD,1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    
     diffuse+=vec4<f32>(hsv2rgb(vec3<f32>( atan2(ppV.y, ppV.x) / atan2(1.0, 0.0) / 4.0, 1.0, 0.5*min(1.0,length(vec2<f32>(ppV.y, ppV.x) )/ 60.0))),0.0)*0.0;
     if (exists < 1.0) {
         // return vec4<f32>(vec3<f32>(0.0),1.0);
@@ -244,8 +301,14 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     }
     // diffuse=vec4<f32>(vec3<f32>(-d/100.0),1.0);
     
-    var fragColor = (diffuse*0.2/2.0 + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.8))*10.0;
-    fragColor = mix(1.0,occ,0.7) * (softclamp42(0.0,1.0,contrast(fragColor,4.5),3.0));
+    var fragColor = vec4<f32>(diffuse);//(diffuse*0.2/2.0 + 16.0*mix(vec4<f32>(spec),1.5*diffuse*spec,0.8))*10.0;
+    var  vv=textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), 0).xy;
+    var nvv=gradient(vec2<i32>(uv));
+    var pp=textureSampleSmooth(pressure, (vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy))%vec2<f32>(u.resolution.xy)+vec2<f32>(u.resolution.xy))%vec2<f32>(u.resolution.xy), 0).x;
+    fragColor = (diffuse)*(spv*0.0+occ)+ 100.0*spec;//vec4<f32>((  nvv - vv).x*0.00000001,0.0*length(vv)*0.000000000001,0.0,0.0);//vec4<f32>(dxy/2.0+0.5,1.0);//occ * (diffuse*0.0+1.0) + spec*100.0;//vec4<f32>(ppD.xyz*0.0+1.0,1.0);//(softclamp42(0.0,1.0,contrast(fragColor,4.5),3.0));
+
+
+    // fragColor = diffuse*(0.2+spec*10.0);
 
     // var dir = vec2<i32>(1, 0);
     // var fl=vec2<f32>(0.0);
