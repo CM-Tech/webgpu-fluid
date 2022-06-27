@@ -3,7 +3,7 @@ import solidPlugin from "vite-plugin-solid";
 
 export default defineConfig({
   plugins: [solidPlugin({ hot: false })],
-  base: "/gputhing/",
+  base: "/webgpu-fluid/",
   build: {
     target: "esnext",
     polyfillDynamicImport: false,
