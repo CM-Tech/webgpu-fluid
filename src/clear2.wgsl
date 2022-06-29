@@ -7,5 +7,5 @@ struct Uniforms {
 
 @fragment
 fn clear(@builtin(position) coords: vec4<f32>) -> @location(0) f32 {
-    return 1.0 * textureLoad(pressure, vec2<i32>(coords.xy), 0).x+0.00;
+    return 1.0 * textureLoad(pressure, vec2<i32>(coords.xy - 0.5), 0).x*0.5;
 }

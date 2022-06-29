@@ -22,7 +22,7 @@ fn existe(coord: vec2<i32>) -> f32 {
     jj=vec2<f32>(u.resolution)/2.0;
 
     if (distance(jj, vec2<f32>(coord)) > f32(W) / 2.0) {
-        return 0.0;
+        // return 0.0;
     }
     
     return 1.0;

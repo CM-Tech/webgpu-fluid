@@ -9,7 +9,7 @@ struct Uniforms {
 
 
 fn textureSampleSmooth(a: texture_2d<f32>, uv: vec2<f32>) -> vec4<f32> {
-    var inn = uv;
+    var inn = uv - 0.5;
     var tl = vec2<i32>(floor(inn));
     var br = vec2<i32>(floor(inn) + 1.0);
     return (textureLoad(a, tl.xy, 0) * (f32(br.x) - inn.x) + textureLoad(a, vec2<i32>(br.x, tl.y), 0) * (inn.x - f32(tl.x))) * (f32(br.y) - inn.y) + 
@@ -17,7 +17,7 @@ fn textureSampleSmooth(a: texture_2d<f32>, uv: vec2<f32>) -> vec4<f32> {
     );
 }
 fn display(@builtin(location) coords: vec4<f32>) -> @location(0) vec4<f32> {
-    let uv = vec2<i32>(coords.xy);
+    let uvv = vec2<i32>(coords.xy);
     var velOffset = 0.1 * textureLoad(velocity, uv, 0).xy;
     var offset: f32;
     var size: f32;
@@ -30,5 +30,5 @@ fn display(@builtin(location) coords: vec4<f32>) -> @location(0) vec4<f32> {
     }
     var pos = vec2<f32>(offset) + vec2<f32>(coords.x, 1.0 - coords.y);
     var logo = textureSampleSmooth(image, pos + velOffset);
-    return vec4<f32>(textureLoad(dye, uv, 0).rgb * (1.0 - logo.a) + logo.rgb * logo.a, 1.0);
+    return vec4<f32>(textureLoad(dye, uvv, 0).rgb * (1.0 - logo.a) + logo.rgb * logo.a, 1.0);
 }

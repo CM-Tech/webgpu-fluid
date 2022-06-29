@@ -64,7 +64,7 @@ function HSVtoRGB(h: number, s: number, v: number) {
   };
 }
 const DOWNSAMPLE = 0;
-// const J_DOWNSAMPLE = 3;
+const PRESSURE_DOWNSAMPLE = 3;
 type VelTouch = {
   identifier: number;
   time: number;
@@ -176,6 +176,25 @@ const GPUProgram = (props:{
       },
     ],
   });
+  const dyeVelocityPressureLayout = props.device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+      },
+    ],
+  });
   const floatLayout = props.device.createBindGroupLayout({
     entries: [
       {
@@ -247,9 +266,9 @@ const GPUProgram = (props:{
     fragment: {
       module: advectShader,
       entryPoint: "advect",
-      targets: [{ format: "rgba32float" }, { format: "rg32float" }],
+      targets: [{ format: "rgba32float" }, { format: "rg32float" }],//,{ format: "r32float" }],
     },
-    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityPressureLayout] }),
   });
   const clearPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
@@ -285,7 +304,7 @@ const GPUProgram = (props:{
       entryPoint: "jacobi",
       targets: [{ format: "r32float" }],
     },
-    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, float2Layout, floatLayout] }),
+    layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout, floatLayout] }),
   });
   const gradientPipeline = props.device.createRenderPipeline({
     ...defaultPipeline,
@@ -314,9 +333,16 @@ const GPUProgram = (props:{
     },
     layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
   });
-
-  const dwidth = () => props.width >> DOWNSAMPLE;
-  const dheight = () => props.height >> DOWNSAMPLE;
+type Ops={
+  width:()=>number;
+  height:()=>number;
+}
+  const widthDisplay = () => props.width;
+  const heightDisplay= () => props.height;
+  const widthDye = () => props.width >> DOWNSAMPLE;
+  const heightDye = () => props.height >> DOWNSAMPLE;
+  const widthPressure = () => props.width >> PRESSURE_DOWNSAMPLE;
+  const heightPressure = () => props.height >> PRESSURE_DOWNSAMPLE;
   createRenderEffect(() => {
     props.context.configure({
       device:props.device,
@@ -326,29 +352,29 @@ const GPUProgram = (props:{
     });
   });
 
-  const createTexture = (format?: GPUTextureFormat) => (last?: GPUTexture) => {
+  const createTexture = (format?: GPUTextureFormat,ops?:Ops) => (last?: GPUTexture) => {
     if (last) last.destroy();
     const newTex = props.device.createTexture({
       format: format ?? presentationFormat,
       dimension: "2d",
       mipLevelCount: 1,
-      size: [dwidth(), dheight()],
+      size: [(ops?.width??widthDye)(), (ops?.height??heightDye)()],
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
     return newTex;
   };
 
-  const doubleFbo = (format?: GPUTextureFormat) =>
-    createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
+  const doubleFbo = (format?: GPUTextureFormat,ops?:Ops) =>
+    createSwappable(createMemo<GPUTexture>(createTexture(format,ops)), createMemo<GPUTexture>(createTexture(format,ops)));
 
   const dye = doubleFbo("rgba32float");
   const velocity = doubleFbo("rg32float");
-  const pressure = doubleFbo("r32float");
-  const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
+  const pressure = doubleFbo("r32float",{width:widthPressure,height:heightPressure});
+  const divergenceTex = createMemo<GPUTexture>(createTexture("r32float",{width:widthPressure,height:heightPressure}));
 
   const uniforms = props.device.createBuffer({
-    size: 3 << 2,
+    size: 7 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
@@ -361,7 +387,7 @@ const GPUProgram = (props:{
     });
 
   const displayUniforms = props.device.createBuffer({
-    size: 3 << 2,
+    size: 6 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
@@ -509,14 +535,15 @@ const GPUProgram = (props:{
   });
 
   createRenderEffect(() => {
-    props.device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([dwidth(), dheight()]));
-    props.device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([dwidth(), dheight(), DOWNSAMPLE]));
+    props.device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([widthDye(), heightDye(),widthPressure(),heightPressure(), widthDisplay(),heightDisplay()]));
+    props.device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([widthDye(), heightDye(),widthPressure(),heightPressure(), widthDisplay(),heightDisplay()]));
   });
 
   const mainBindGroup = props.device.createBindGroup({
     layout: mainLayout,
     entries: [{ binding: 0, resource: { buffer: uniforms } }],
   });
+  
   const displayBindGroup = props.device.createBindGroup({
     layout: displayMainLayout,
     entries: [{ binding: 0, resource: { buffer: displayUniforms } }],
@@ -527,7 +554,7 @@ const GPUProgram = (props:{
   const frame = () => {
     let meDate=new Date();
     let dt=Math.min((+meDate-+lastDate)/1000,1/10);
-    props.device.queue.writeBuffer(uniforms, 2 << 2, new Float32Array([dt]));
+    props.device.queue.writeBuffer(uniforms, 6 << 2, new Float32Array([dt]));
     lastDate=meDate;
     const commandEncoder = props.device.createCommandEncoder();
     var sPause=(touches.length===0) && shift;
@@ -637,15 +664,21 @@ const GPUProgram = (props:{
     }
     
   const divergenceReadGroup = props.device.createBindGroup({
-    layout: float2Layout,
-    entries: [{ binding: 0, resource: divergenceTex().createView() },{ binding: 1, resource:velocity.read.createView() }],
+    layout: floatLayout,
+    entries: [{ binding: 0, resource: divergenceTex().createView() }],
   });
+  let ag=[pressure.write.createView(),pressure.read.createView()];
+  let ag2=ag.map(x=>props.device.createBindGroup({
+    layout: floatLayout,
+    entries: [{ binding: 0, resource: x }],
+  }));
     for (let i = 0; i < props.config.pressureSolverIterations; i++) 
         {
+          var sp=i%2;
           const passEncoder = commandEncoder.beginRenderPass({
             colorAttachments: [
               {
-                view: pressure.write.createView(),
+                view: ag[sp],
                 clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                 storeOp: "store",
                 loadOp: "clear",
@@ -654,13 +687,11 @@ const GPUProgram = (props:{
           });
           passEncoder.setPipeline(jacobiPipeline);
           passEncoder.setBindGroup(0, mainBindGroup);
+          
           passEncoder.setBindGroup(1, divergenceReadGroup);
           passEncoder.setBindGroup(
             2,
-            props.device.createBindGroup({
-              layout: floatLayout,
-              entries: [{ binding: 0, resource: pressure.read.createView() }],
-            })
+            ag2[1-sp]
           );
           passEncoder.draw(4, 1, 0, 0);
           passEncoder.end();
@@ -712,6 +743,12 @@ const GPUProgram = (props:{
             storeOp: "store",
             loadOp: "clear",
           },
+          // {
+          //   view: pressure.write.createView(),
+          //   clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+          //   storeOp: "store",
+          //   loadOp: "clear",
+          // },
         ],
       });
       passEncoder.setPipeline(advectPipeline);
@@ -719,10 +756,11 @@ const GPUProgram = (props:{
       passEncoder.setBindGroup(
         1,
         props.device.createBindGroup({
-          layout: dyeVelocityLayout,
+          layout: dyeVelocityPressureLayout,
           entries: [
             { binding: 0, resource: dye.read.createView() },
             { binding: 1, resource: velocity.read.createView() },
+            { binding: 2, resource: pressure.read.createView() },
           ],
         })
       );
@@ -731,6 +769,7 @@ const GPUProgram = (props:{
 
       dye.swap();
       velocity.swap();
+      pressure.swap();
       }
     }
   }

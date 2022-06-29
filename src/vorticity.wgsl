@@ -1,5 +1,7 @@
 struct Uniforms {
     resolution: vec2<i32>,
+    resolutionPressure: vec2<i32>,
+    resolutionDisplay: vec2<i32>,
     timestep: f32
 };
 @group(0) @binding(0) var<uniform> u : Uniforms;
@@ -7,7 +9,7 @@ struct Uniforms {
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 
 let EPSILON = 2.4414e-4; // 2^-12
-let curlAmount = 2.0;
+let curlAmount = 1.0;
 
 fn curl(coords: vec2<i32>) -> f32 {
     var L = textureLoad(velocity, coords - vec2<i32>(1, 0), 0).y;
