@@ -65,14 +65,7 @@ type VelTouch = {
   uniform: GPUBuffer;
 };
 type Config = { pressureSolverIterations: number; color: { r: number; g: number; b: number }; paused: boolean };
-// type GPUProgram = (props: {
-//   width: number;
-//   height: number;
-//   device: GPUDevice;
-//   context: GPUCanvasContext;
-//   config: Store<Config>,
-//   setConfig: StoreSetter<Config>
-// }) => void;
+
 let lastH = Math.random();
 const GPUProgram = (props: {
   width: number;
@@ -195,20 +188,6 @@ const GPUProgram = (props: {
         },
       ],
     });
-    const float2Layout = props.device.createBindGroupLayout({
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.FRAGMENT,
-          texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-        },
-        {
-          binding: 1,
-          visibility: GPUShaderStage.FRAGMENT,
-          texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-        },
-      ],
-    });
     const gradientLayout = props.device.createBindGroupLayout({
       entries: [
         {
@@ -262,24 +241,6 @@ const GPUProgram = (props: {
         targets: [{ format: "rgba32float" }, { format: "rg32float" }], //,{ format: "r32float" }],
       },
       layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityPressureLayout] }),
-    });
-    const clearPipeline = props.device.createRenderPipeline({
-      ...defaultPipeline,
-      fragment: {
-        module: clearShader,
-        entryPoint: "clear",
-        targets: [{ format: "r32float" }],
-      },
-      layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
-    });
-    const clearPipeline2 = props.device.createRenderPipeline({
-      ...defaultPipeline,
-      fragment: {
-        module: clearShader2,
-        entryPoint: "clear",
-        targets: [{ format: "r32float" }],
-      },
-      layout: props.device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
     });
     const divergencePipeline = props.device.createRenderPipeline({
       ...defaultPipeline,
@@ -372,14 +333,14 @@ const GPUProgram = (props: {
     );
 
     const uniforms = props.device.createBuffer({
-      size: 7 << 2,
+      size: 8 << 2,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
     });
 
     const makeUniformsPerTouch = () =>
       props.device.createBuffer({
-        size: 10 << 2,
+        size: 12 << 2,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         mappedAtCreation: false,
       });
@@ -468,8 +429,6 @@ const GPUProgram = (props: {
       const m = touches.find((t) => t.identifier === touch.identifier)!; // TODO: YEET
       if (!m) return;
       moveTouch(touch);
-      // clearTimeout(clearMouseTimeout);
-      // clearMouseTimeout = window.setTimeout(() => moveTouch(touch), 100);
     });
 
     createEventListener(document.querySelector("canvas")!, "mousedown", (e: MouseEvent) => {
@@ -515,7 +474,6 @@ const GPUProgram = (props: {
       window,
       "keydown",
       (e: KeyboardEvent) => {
-        // e.preventDefault();
         if (e.key.includes("Shift")) {
           shift = true;
         }
@@ -613,35 +571,6 @@ const GPUProgram = (props: {
         }
         velocity.swap();
       }
-
-      // {
-      //   const passEncoder = commandEncoder.beginRenderPass({
-      //     colorAttachments: [
-      //       {
-      //         view: pressure.write.createView(),
-      //         clearValue: { r: 1, g: 1, b: 1, a: 1 },
-      //         storeOp: "store",
-      //         loadOp: "clear",
-
-      //       },
-      //     ],
-      //   });
-      //   passEncoder.setPipeline(clearPipeline2);
-      //   passEncoder.setBindGroup(0, mainBindGroup);
-      //   passEncoder.setBindGroup(
-      //     1,
-      //     props.device.createBindGroup({
-      //       layout: floatLayout,
-      //       entries: [{ binding: 0, resource: pressure.read.createView() }],
-      //     })
-      //   );
-      //   passEncoder.draw(4, 1, 0, 0);
-      //   passEncoder.end();
-
-      //   pressure.swap();
-      // }
-
-      // }
 
       for (let igg = 0; igg < 1.0; igg += 1) {
         {
@@ -746,12 +675,6 @@ const GPUProgram = (props: {
                   storeOp: "store",
                   loadOp: "clear",
                 },
-                // {
-                //   view: pressure.write.createView(),
-                //   clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-                //   storeOp: "store",
-                //   loadOp: "clear",
-                // },
               ],
             });
             passEncoder.setPipeline(advectPipeline);
@@ -859,10 +782,8 @@ const App = () => {
   const setConfig: typeof setConfigf = (...args: any[]) => {
     var v = setConfigf(...args);
     document.querySelector("#leva__root")?.remove();
-    // console.log(args[0],args[1])
     levaStore.disposePaths([args[0]]);
     try {
-      // did=true;
       levaStore.setValueAtPath(args[0], args[1], false);
     } catch (e) {
       console.log("E", e);
@@ -874,13 +795,6 @@ const App = () => {
         paused: config.paused,
       })
     );
-    // did=false;
-    // levaStore.subscribeToEditStart("color",()=>{
-    //   console.log("YEE")
-    //   setConfig("color",{...controls().color});
-    // }
-    // )
-    // setControls(createControls({pressureSolverIterations:config.pressureSolverIterations,color:config.color}));
     return v;
   };
   const [controls, setControls] = createSignal(
@@ -891,45 +805,11 @@ const App = () => {
     })
   );
 
-  // createEffect(()=>{
-  //   console.log("C",{...controls().color});
-  //   if(!did){
-  //   did=true;
-  //   window.setTimeout(()=>{
-  //     // try{
-  //     //   setConfig("pressureSolverIterations",config.pressureSolverIterations)
-  //     //   }catch(e){
-
-  //     //   }
-  //       try{
-  //         console.log("C",{...controls().color});
-  //         setConfig("color",JSON.parse(JSON.stringify({...controls().color})))
-  //         }catch(e){
-  //     console.log(e);
-  //         }
-
-  //       window.setTimeout(()=>{
-  //         did=false;
-  //         },1000);
-  //     },1000);
-  //   }
-  //   // levaStore.dispose();
-  //   // document.querySelector("#leva__root")?.remove();
-  //   // setControls(createControls({pressureSolverIterations:config.pressureSolverIterations,color:config.color}))
-  // });
-
   createEventListener(window, "resize", () => {
     setWidth(window.innerWidth);
     setHeight(window.innerHeight);
   });
 
-  let c!: HTMLCanvasElement;
-
-  // const [gpu] = createResource(async () => {
-  //   const adapter = await navigator.gpu?.requestAdapter();
-  //   if (!adapter) throw new Error("No GPU support");
-  //   return await adapter.requestDevice();
-  // });
   (async () => {
     const adapter = await navigator.gpu?.requestAdapter();
     if (!adapter) throw new Error("No GPU support");
@@ -940,18 +820,7 @@ const App = () => {
   });
 
   createEffect(() => {
-    // setControls(createControls(config));
-
     createControls(() => ({ pressureSolverIterations: config.pressureSolverIterations }));
-    // setConfig("pressureSolverIterations",controls.pressureSolverIterations);
-    //   let devicee = gpu();
-    // if (devicee)
-    // setDevice(devicee);
-    // window.setInterval(()=>{
-
-    // setConfig(controls);
-    // },100);
-    // setContext (c.getContext("webgpu")!);
   });
 
   return (
