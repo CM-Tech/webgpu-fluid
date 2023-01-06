@@ -8,8 +8,8 @@ struct Uniforms {
 
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 
-let EPSILON = 2.4414e-4; // 2^-12
-let curlAmount = 1.0;
+const EPSILON = 2.4414e-4; // 2^-12
+const curlAmount = 1.0;
 
 fn curl(coords: vec2<i32>) -> f32 {
     var L = textureLoad(velocity, coords - vec2<i32>(1, 0), 0).y;

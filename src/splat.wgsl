@@ -8,14 +8,14 @@ struct Uniforms {
 
 struct Touch {
     color: vec4<f32>,
-    point: vec2<f32>,
+    cpoint: vec2<f32>,
     velocity: vec2<f32>,
     oldPoint: vec2<f32>,
 };
 
 @group(2) @binding(0) var<uniform> touch : Touch;
 
-let radius = 1600.0;
+const radius = 1600.0;
 
 struct Output {
     @location(0) dye: vec4<f32>,
@@ -47,7 +47,7 @@ fn closestPoint(start: vec2<f32>, end: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
 @fragment
 fn splat(@builtin(position) coords: vec4<f32>) -> Output {
     var coord = vec2<i32>(coords.xy);
-    var p = coords.xy - closestPoint(touch.point, touch.oldPoint, coords.xy);
+    var p = coords.xy - closestPoint(touch.cpoint, touch.oldPoint, coords.xy);
     var strength = exp(-dot(p, p) / radius);
     // if(strength>0.5){
     //     strength=1.0;

@@ -17,7 +17,7 @@ fn textureSampleSmooth(a: texture_2d<f32>, uv: vec2<f32>) -> vec4<f32> {
     );
 }
 fn display(@builtin(location) coords: vec4<f32>) -> @location(0) vec4<f32> {
-    let uvv = vec2<i32>(coords.xy);
+    const uvv = vec2<i32>(coords.xy);
     var velOffset = 0.1 * textureLoad(velocity, uv, 0).xy;
     var offset: f32;
     var size: f32;

@@ -58,7 +58,7 @@ fn hsv2rgb(c: vec3<f32>) -> vec3<f32> {
 
 
 
-let BUMP = 1.0;
+const BUMP = 1.0;
 
 fn D(uv: vec2<f32>, d: vec2<f32>, mip: i32) -> f32 {
     // return length(textureSampleSmooth(velocity, vec2<f32>((uv + (d+0.0)) * vec2<f32>(u.resolution.xy)), mip).xy);
@@ -153,7 +153,7 @@ fn ggx(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, rough: f32, f0: f32) -> f32 {
     var d:f32;
     var vis : f32;
     var asqr = alpha * alpha;
-    let pi:f32 = 3.14159;
+    const pi:f32 = 3.14159;
     var den = dnh * dnh * (asqr - 1.0) + 1.0;
     d = asqr / (pi * den * den);
     dlh = pow(1.0 - dlh, 5.0);
@@ -172,7 +172,7 @@ struct LL {
     ld: vec3<f32>,
     avd: vec3<f32>,
 };
-let iTime=0.0;
+const iTime=0.0;
 fn light(uv: vec2<f32>, BUMP: f32, SRC_DIST: f32, norm: vec3<f32>, iTime: f32, avd: vec3<f32>) -> LL {
     var sp = vec3<f32>(uv - 0.5, 0);
     var light = vec3<f32>(cos(iTime / 2.0) * 0.5, sin(iTime / 2.0) * 0.5, -SRC_DIST);
@@ -261,8 +261,8 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     
     // blur the gradient to reduce appearance of artifacts,
     // and do cheap occlusion with mipmaps
-    let  STEPS = 1;
-    let  ODIST = 0.0001;
+    const  STEPS = 1;
+    const  ODIST = 0.0001;
     for (mip = 1; mip <= STEPS; mip += 1) {
         if (mip == 1) {
             dxy += (1.0 / pow(2.0, f32(mip))) * diff(uv, mip - 1);
@@ -272,7 +272,7 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
     var wi = 0.0;
     var vis = 0.0;
     var spv = 0.0;
-    let RA = 3;
+    const RA = 3;
     
     // occ=D(uv,vec2<f32>(0.0), 0);//vis/wi;
     // dxy=vec2<f32>(-1.0,0.0);
@@ -315,7 +315,7 @@ fn display(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
    // spv=0.0;
 
     var spec = ggx(avd, vec3<f32>(0, 1, 0), ld, 0.2, 0.2) * pow(0.1 / 0.2, 2.0);
-    let LOG_SPEC = 10.0;
+    const LOG_SPEC = 10.0;
     spec = (log(LOG_SPEC + 1.0) / LOG_SPEC) * log(1.0 + LOG_SPEC * spec);
 
     var diffuse = vec4<f32>(ppD, 1.0);// softclamp42(0.0,1.0,6.0*vec4(texture(iChannel0,uv).xy,0,0)+0.5,2.0);    

@@ -94,7 +94,7 @@ const GPUProgram = (props:{
   
   createEffect(()=>{
     if(!props.device || !props.context) return ;
-  const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+  const presentationFormat = "rgba8unorm" ;//navigator.gpu.getPreferredCanvasFormat();
   const vertShader = props.device.createShaderModule({
     code: "\n" + vertWGSL,
   });

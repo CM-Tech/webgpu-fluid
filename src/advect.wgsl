@@ -11,9 +11,9 @@ struct Uniforms {
 @group(1) @binding(2) var pressure : texture_2d<f32>;
 
 
-let dyeDissipation = 1.0;
-let velocityDissipation = 1.0;//0.75;
-let color = vec4<f32>(vec3<f32>(0.0), 1.0);
+const dyeDissipation = 1.0;
+const velocityDissipation = 1.0;//0.75;
+const color = vec4<f32>(vec3<f32>(0.0), 1.0);
 
 struct Output {
     @location(0) dye: vec4<f32>,
@@ -58,7 +58,7 @@ fn jjexiste(uvc: vec2<i32>) -> f32 {
 
 @fragment
 fn advect(@builtin(position) coords: vec4<f32>) -> Output {
-    let timestep = u.timestep/1.0;
+    var timestep = u.timestep/1.0;
     var coord = vec2<i32>(coords.xy - 0.5);
     var pos = coords.xy - timestep * textureLoad(velocity, vec2<i32>(coord), 0).xy;
     var exists :f32 = existe(coord);
@@ -100,9 +100,9 @@ fn advect(@builtin(position) coords: vec4<f32>) -> Output {
 // @group(1) @binding(0) var dye : texture_2d<f32>;
 // @group(1) @binding(1) var velocity : texture_2d<f32>;
 
-// let dyeDissipation = 1.0;
-// let velocityDissipation = 1.0;//0.75;
-// let color = vec4<f32>(vec3<f32>(0.0), 1.0);
+// const dyeDissipation = 1.0;
+// const velocityDissipation = 1.0;//0.75;
+// const color = vec4<f32>(vec3<f32>(0.0), 1.0);
 
 // struct Output {
 //     @location(0) dye: vec4<f32>,
@@ -144,7 +144,7 @@ fn sampleVelocity(coord: vec2<i32>,coordo: vec2<i32>) -> vec3<f32> {
 
 // @fragment
 // fn advect(@builtin(position) coords: vec4<f32>) -> Output {
-//     let timestep = u.timestep/100.0;
+//     const timestep = u.timestep/100.0;
 //     var coord = vec2<i32>(coords.xy - 0.5);
 //     var pos = coords.xy - timestep * textureLoad(velocity, vec2<i32>(coord), 0).xy;
 //     var posD = coords.xy - timestep * textureLoad(velocity, vec2<i32>(coord), 0).xy;
