@@ -6,6 +6,5 @@ export default defineConfig({
   base: "/webgpu-fluid/",
   build: {
     target: "esnext",
-    polyfillDynamicImport: false,
   },
 });

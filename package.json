@@ -10,17 +10,17 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@types/babel__core": "^7.1.19",
-    "@types/node": "^18.0.0",
-    "@webgpu/types": "^0.1.20",
-    "prettier": "^2.7.1",
-    "typescript": "^4.7.4",
-    "vite": "^2.9.12",
-    "vite-plugin-solid": "^2.2.6"
+    "@types/babel__core": "^7.1.20",
+    "@types/node": "^18.11.18",
+    "@webgpu/types": "^0.1.24",
+    "prettier": "^2.8.1",
+    "typescript": "^4.9.4",
+    "vite": "^4.0.4",
+    "vite-plugin-solid": "^2.5.0"
   },
   "dependencies": {
-    "@solid-primitives/event-listener": "^2.2.0",
-    "solid-js": "^1.4.4",
+    "@solid-primitives/event-listener": "^2.2.4",
+    "solid-js": "^1.6.8",
     "solid-leva": "^0.0.2"
   }
 }
