@@ -1,4 +1,4 @@
-import { createMemo, createSignal, createRenderEffect, onMount, onCleanup, createEffect } from "solid-js";
+import { createMemo, createSignal, createRenderEffect, onMount, onCleanup, createEffect, Show } from "solid-js";
 import type { Accessor } from "solid-js";
 import { render } from "solid-js/web";
 import vertWGSL from "./vert.wgsl?raw";
@@ -809,14 +809,17 @@ const App = () => {
     setWidth(window.innerWidth);
     setHeight(window.innerHeight);
   });
-
+const [support,setSupport]=createSignal<""|boolean>("");
   (async () => {
     const adapter = await navigator.gpu?.requestAdapter();
     if (!adapter) throw new Error("No GPU support");
     return await adapter.requestDevice();
   })().then((x) => {
     console.log("D", x);
+    setSupport(true);
     setDevice(x);
+  }).catch(()=>{
+    setSupport(false);
   });
 
   createEffect(() => {
@@ -825,7 +828,8 @@ const App = () => {
 
   return (
     <div>
-      <canvas ref={(c) => setContext(c.getContext("webgpu")!)} width={width()} height={height()}></canvas>
+      <Show when={()=>support()===false}><div>WebGPU not supported</div></Show>
+      <Show when={()=>support()===true}><canvas ref={(c) => setContext(c.getContext("webgpu")!)} width={width()} height={height()}></canvas></Show>
       <GPUProgram
         context={context()!}
         device={device()!}
