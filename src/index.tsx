@@ -809,18 +809,22 @@ const App = () => {
     setWidth(window.innerWidth);
     setHeight(window.innerHeight);
   });
-const [support,setSupport]=createSignal<""|boolean>("");
+  const [support, setSupport] = createSignal<"" | boolean>("");
   (async () => {
     const adapter = await navigator.gpu?.requestAdapter();
-    if (!adapter) throw new Error("No GPU support");
+    if (!adapter) {
+      throw new Error("No GPU support");
+    }
     return await adapter.requestDevice();
-  })().then((x) => {
-    console.log("D", x);
-    setSupport(true);
-    setDevice(x);
-  }).catch(()=>{
-    setSupport(false);
-  });
+  })()
+    .then((x) => {
+      console.log("D", x);
+      setSupport(true);
+      setDevice(x);
+    })
+    .catch(() => {
+      setSupport(false);
+    });
 
   createEffect(() => {
     createControls(() => ({ pressureSolverIterations: config.pressureSolverIterations }));
@@ -828,8 +832,12 @@ const [support,setSupport]=createSignal<""|boolean>("");
 
   return (
     <div>
-      <Show when={()=>support()===false}><div>WebGPU not supported</div></Show>
-      <Show when={()=>support()===true}><canvas ref={(c) => setContext(c.getContext("webgpu")!)} width={width()} height={height()}></canvas></Show>
+      <Show when={() => support() === false}>
+        <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)","text-align":"center"}}>WebGPU not supported</div>
+      </Show>
+      <Show when={() => support() === true}>
+        <canvas ref={(c) => setContext(c.getContext("webgpu")!)} width={width()} height={height()}></canvas>
+      </Show>
       <GPUProgram
         context={context()!}
         device={device()!}
