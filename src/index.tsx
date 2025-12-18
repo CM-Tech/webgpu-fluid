@@ -10,7 +10,6 @@ import {
 import type { Accessor } from "solid-js";
 import { render } from "solid-js/web";
 import vertWGSL from "./vert.wgsl?raw";
-import displayWGSL from "./display.wgsl?raw";
 import advectWGSL from "./advect.wgsl?raw";
 import clearWGSL from "./clear.wgsl?raw";
 import divergenceWGSL from "./divergence.wgsl?raw";
@@ -35,13 +34,11 @@ const createSwappable = <T,>(a: Accessor<T>, b: Accessor<T>) => {
   };
 };
 
-const DOWNSAMPLE = 0;
+const DOWNSAMPLE = 2;
 type VelTouch = {
   identifier: number;
-  time: number;
   x: number;
   y: number;
-  previous: { time: number; x: number; y: number };
   uniform: GPUBuffer;
 };
 type GPUProgram = (props: {
@@ -54,9 +51,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   const vertShader = device.createShaderModule({
     code: vertWGSL,
-  });
-  const displayShader = device.createShaderModule({
-    code: displayWGSL,
   });
   const advectShader = device.createShaderModule({
     code: advectWGSL,
@@ -89,26 +83,22 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       },
     ],
   });
-  const displayLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
-      },
-    ],
-  });
   const dyeVelocityLayout = device.createBindGroupLayout({
     entries: [
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+        texture: { viewDimension: "2d", sampleType: "float" },
       },
       {
         binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+        texture: { viewDimension: "2d", sampleType: "float" },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        sampler: { type: "filtering" },
       },
     ],
   });
@@ -117,7 +107,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+        texture: { viewDimension: "2d", sampleType: "float" },
       },
     ],
   });
@@ -126,12 +116,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+        texture: { viewDimension: "2d", sampleType: "float" },
       },
       {
         binding: 1,
         visibility: GPUShaderStage.FRAGMENT,
-        texture: { viewDimension: "2d", sampleType: "unfilterable-float" },
+        texture: { viewDimension: "2d", sampleType: "float" },
       },
     ],
   });
@@ -155,21 +145,39 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       stripIndexFormat: "uint16",
     },
   } as const;
-  const splatPipeline = device.createRenderPipeline({
+  const splatDyePipeline = device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: splatShader,
-      entryPoint: "splat",
-      targets: [{ format: "rgba32float" }, { format: "rg32float" }],
+      entryPoint: "splat_dye",
+      targets: [{ format: "rgba16float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout, splatTouchLayout] }),
   });
-  const advectPipeline = device.createRenderPipeline({
+  const splatVelocityPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: splatShader,
+      entryPoint: "splat_velocity",
+      targets: [{ format: "rg16float" }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout, splatTouchLayout] }),
+  });
+  const advectDyePipeline = device.createRenderPipeline({
     ...defaultPipeline,
     fragment: {
       module: advectShader,
-      entryPoint: "advect",
-      targets: [{ format: "rgba32float" }, { format: "rg32float" }],
+      entryPoint: "advect_dye",
+      targets: [{ format: "rgba16float" }, { format: presentationFormat }],
+    },
+    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
+  });
+  const advectVelocityPipeline = device.createRenderPipeline({
+    ...defaultPipeline,
+    fragment: {
+      module: advectShader,
+      entryPoint: "advect_velocity",
+      targets: [{ format: "rg16float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, dyeVelocityLayout] }),
   });
@@ -178,7 +186,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     fragment: {
       module: clearShader,
       entryPoint: "clear",
-      targets: [{ format: "r32float" }],
+      targets: [{ format: "r16float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
   });
@@ -187,7 +195,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     fragment: {
       module: divergenceShader,
       entryPoint: "divergence",
-      targets: [{ format: "r32float" }],
+      targets: [{ format: "r16float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
   });
@@ -196,7 +204,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     fragment: {
       module: jacobiShader,
       entryPoint: "jacobi",
-      targets: [{ format: "r32float" }],
+      targets: [{ format: "r16float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout, floatLayout] }),
   });
@@ -205,7 +213,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     fragment: {
       module: gradientShader,
       entryPoint: "gradient",
-      targets: [{ format: "rg32float" }],
+      targets: [{ format: "rg16float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, gradientLayout] }),
   });
@@ -214,18 +222,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     fragment: {
       module: vorticityShader,
       entryPoint: "vorticity",
-      targets: [{ format: "rg32float" }],
+      targets: [{ format: "rg16float" }],
     },
     layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, floatLayout] }),
-  });
-  const displayPipeline = device.createRenderPipeline({
-    ...defaultPipeline,
-    fragment: {
-      module: displayShader,
-      entryPoint: "display",
-      targets: [{ format: presentationFormat }],
-    },
-    layout: device.createPipelineLayout({ bindGroupLayouts: [mainLayout, displayLayout] }),
   });
 
   const dwidth = () => width() >> DOWNSAMPLE;
@@ -245,7 +244,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       format: format ?? presentationFormat,
       dimension: "2d",
       mipLevelCount: 1,
-      size: [dwidth(), dheight()],
+      size: format == "rgba16float" ? [width(), height()] : [dwidth(), dheight()],
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
@@ -255,38 +254,39 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const doubleFbo = (format?: GPUTextureFormat) =>
     createSwappable(createMemo<GPUTexture>(createTexture(format)), createMemo<GPUTexture>(createTexture(format)));
 
-  const dye = doubleFbo("rgba32float");
-  const velocity = doubleFbo("rg32float");
-  const pressure = doubleFbo("r32float");
-  const divergenceTex = createMemo<GPUTexture>(createTexture("r32float"));
+  const dye = doubleFbo("rgba16float");
+  const velocity = doubleFbo("rg16float");
+  const pressure = doubleFbo("r16float");
+  const divergenceTex = createMemo<GPUTexture>(createTexture("r16float"));
 
   const uniforms = device.createBuffer({
-    size: 2 << 2,
+    size: 4 << 2,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: false,
   });
 
   const makeUniformsPerTouch = () =>
     device.createBuffer({
-      size: 10 << 2,
+      size: 12 << 2,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: false,
     });
 
-  const displayUniforms = device.createBuffer({
-    size: 1 << 2,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    mappedAtCreation: false,
+  const sampler = device.createSampler({
+    addressModeU: "clamp-to-edge",
+    addressModeV: "clamp-to-edge",
+    magFilter: "linear",
+    minFilter: "linear",
   });
 
-  const touches: VelTouch[] = [];
+  const touches: Map<number, VelTouch> = new Map();
   const createTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
     const m = {
       identifier: touch.identifier,
-      x: touch.clientX >> DOWNSAMPLE,
-      y: touch.clientY >> DOWNSAMPLE,
       time: Date.now(),
-      previous: { time: Date.now(), x: touch.clientX >> DOWNSAMPLE, y: touch.clientY >> DOWNSAMPLE },
+      x: touch.clientX,
+      y: touch.clientY,
+      velocity: { x: 0, y: 0 },
       uniform: makeUniformsPerTouch(),
     };
 
@@ -302,57 +302,60 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         m.y,
         0,
         0,
-        m.previous.x,
-        m.previous.y,
-      ])
+        m.x,
+        m.y,
+      ]),
     );
 
-    touches.push(m);
+    touches.set(m.identifier, m);
   };
   const moveTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
-    const m = touches.find((t) => t.identifier === touch.identifier)!; // TODO: YEET
+    const m = touches.get(touch.identifier);
     if (!m) {
       createTouch(touch);
       return;
     }
-    m.previous.time = m.time;
-    m.previous.x = m.x;
-    m.previous.y = m.y;
-    m.time = Date.now();
-    m.x = touch.clientX >> DOWNSAMPLE;
-    m.y = touch.clientY >> DOWNSAMPLE;
+    const prevX = m.x;
+    const prevY = m.y;
+    m.x = touch.clientX;
+    m.y = touch.clientY;
+    const delX = m.x - prevX;
+    const delY = m.y - prevY;
+    const len = Math.sqrt(delX * delX + delY * delY);
+    const maxLen = 2000;
+    const speed = 100;
     device.queue.writeBuffer(
       m.uniform,
       4 << 2,
       new Float32Array([
         m.x,
         m.y,
-        ((m.x - m.previous.x) / (m.time - m.previous.time + 1)) * 1000,
-        ((m.y - m.previous.y) / (m.time - m.previous.time + 1)) * 1000,
-        m.previous.x,
-        m.previous.y,
-      ])
+        len * speed > maxLen ? (delX / len) * maxLen : delX * speed,
+        len * speed > maxLen ? (delY / len) * maxLen : delY * speed,
+      ]),
     );
   };
   const destroyTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
-    const m = touches.find((t) => t.identifier === touch.identifier)!; // TODO: YEET
+    const m = touches.get(touch.identifier);
     if (!m) return;
-    touches.splice(touches.indexOf(m), 1);
+    touches.delete(m.identifier);
     m.uniform.destroy();
   };
 
-  let clearMouseTimeout: number;
   createEventListener(window, "mousemove", (e: MouseEvent) => {
     const touch = { clientX: e.clientX, clientY: e.clientY, identifier: -1 };
     moveTouch(touch);
-    clearTimeout(clearMouseTimeout);
-    clearMouseTimeout = window.setTimeout(() => moveTouch(touch), 100);
   });
 
   createEventListener(window, "mousedown", (e: MouseEvent) => {
     const touch = { clientX: e.clientX, clientY: e.clientY, identifier: -1 };
-    destroyTouch(touch);
     moveTouch(touch);
+    const m = touches.get(touch.identifier)!;
+    device.queue.writeBuffer(
+      m.uniform,
+      0 << 2,
+      new Float32Array([Math.random() * 2 + 0.5, Math.random() * 2 + 0.5, Math.random() * 2 + 0.5]),
+    );
   });
 
   createEventListener(
@@ -361,7 +364,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     (e) => {
       e.preventDefault();
     },
-    { passive: false }
+    { passive: false },
   );
   createEventListener(
     window,
@@ -371,7 +374,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
       for (let i = 0; i < e.changedTouches.length; i++) createTouch(e.changedTouches[i]);
     },
-    { passive: false }
+    { passive: false },
   );
   createEventListener(
     window,
@@ -381,7 +384,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
       for (let i = 0; i < e.changedTouches.length; i++) moveTouch(e.changedTouches[i]);
     },
-    { passive: false }
+    { passive: false },
   );
   createEventListener(window, "touchend", ({ changedTouches }: TouchEvent) => {
     destroyTouch({ identifier: -1, clientX: 0, clientY: 0 });
@@ -389,21 +392,12 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   });
 
   createRenderEffect(() => {
-    device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([dwidth(), dheight()]));
-    device.queue.writeBuffer(displayUniforms, 0 << 2, new Int32Array([DOWNSAMPLE]));
+    device.queue.writeBuffer(uniforms, 0 << 2, new Int32Array([dwidth(), dheight(), width(), height()]));
   });
 
   const mainBindGroup = device.createBindGroup({
     layout: mainLayout,
-    entries: [
-      { binding: 0, resource: { buffer: uniforms } },
-    ],
-  });
-  const displayBindGroup = device.createBindGroup({
-    layout: mainLayout,
-    entries: [
-      { binding: 0, resource: { buffer: displayUniforms } },
-    ],
+    entries: [{ binding: 0, resource: { buffer: uniforms } }],
   });
   const divergenceReadGroup = device.createBindGroup({
     layout: floatLayout,
@@ -414,83 +408,119 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const frame = () => {
     const commandEncoder = device.createCommandEncoder();
 
-    for (const mouse of touches) {
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: dye.write.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
-          {
-            view: velocity.write.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
+    for (const mouse of touches.values()) {
+      const bindDyeVelocity = device.createBindGroup({
+        layout: dyeVelocityLayout,
+        entries: [
+          { binding: 0, resource: dye.read.createView() },
+          { binding: 1, resource: velocity.read.createView() },
+          { binding: 2, resource: sampler },
         ],
       });
-      passEncoder.setPipeline(splatPipeline);
-      passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(
-        1,
-        device.createBindGroup({
-          layout: dyeVelocityLayout,
-          entries: [
-            { binding: 0, resource: dye.read.createView() },
-            { binding: 1, resource: velocity.read.createView() },
-          ],
-        })
-      );
-      passEncoder.setBindGroup(
-        2,
-        device.createBindGroup({
-          layout: splatTouchLayout,
-          entries: [{ binding: 0, resource: { buffer: mouse.uniform } }],
-        })
-      );
-      passEncoder.draw(4, 1, 0, 0);
-      passEncoder.end();
+      const bindTouch = device.createBindGroup({
+        layout: splatTouchLayout,
+        entries: [{ binding: 0, resource: { buffer: mouse.uniform } }],
+      });
 
-      dye.swap();
-      velocity.swap();
+      // Dye splat pass (full resolution texture)
+      {
+        const passEncoder = commandEncoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: dye.write.createView(),
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              storeOp: "store",
+              loadOp: "clear",
+            },
+          ],
+        });
+        passEncoder.setPipeline(splatDyePipeline);
+        passEncoder.setBindGroup(0, mainBindGroup);
+        passEncoder.setBindGroup(1, bindDyeVelocity);
+        passEncoder.setBindGroup(2, bindTouch);
+        passEncoder.draw(4, 1, 0, 0);
+        passEncoder.end();
+        dye.swap();
+      }
+
+      // Velocity splat pass (downsampled texture)
+      {
+        const passEncoder = commandEncoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: velocity.write.createView(),
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              storeOp: "store",
+              loadOp: "clear",
+            },
+          ],
+        });
+        passEncoder.setPipeline(splatVelocityPipeline);
+        passEncoder.setBindGroup(0, mainBindGroup);
+        passEncoder.setBindGroup(1, bindDyeVelocity);
+        passEncoder.setBindGroup(2, bindTouch);
+        passEncoder.draw(4, 1, 0, 0);
+        passEncoder.end();
+        velocity.swap();
+      }
     }
 
     {
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: dye.write.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
-          {
-            view: velocity.write.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
+      const bindDyeVelocity = device.createBindGroup({
+        layout: dyeVelocityLayout,
+        entries: [
+          { binding: 0, resource: dye.read.createView() },
+          { binding: 1, resource: velocity.read.createView() },
+          { binding: 2, resource: sampler },
         ],
       });
-      passEncoder.setPipeline(advectPipeline);
-      passEncoder.setBindGroup(0, mainBindGroup);
-      passEncoder.setBindGroup(
-        1,
-        device.createBindGroup({
-          layout: dyeVelocityLayout,
-          entries: [
-            { binding: 0, resource: dye.read.createView() },
-            { binding: 1, resource: velocity.read.createView() },
-          ],
-        })
-      );
-      passEncoder.draw(4, 1, 0, 0);
-      passEncoder.end();
 
-      dye.swap();
-      velocity.swap();
+      // Advect dye (full resolution)
+      {
+        const currentTexture = context.getCurrentTexture();
+        const passEncoder = commandEncoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: dye.write.createView(),
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              storeOp: "store",
+              loadOp: "clear",
+            },
+            {
+              view: currentTexture.createView(),
+              loadOp: "clear",
+              storeOp: "store",
+              clearValue: { r: 0, g: 0, b: 0, a: 1 },
+            },
+          ],
+        });
+        passEncoder.setPipeline(advectDyePipeline);
+        passEncoder.setBindGroup(0, mainBindGroup);
+        passEncoder.setBindGroup(1, bindDyeVelocity);
+        passEncoder.draw(4, 1, 0, 0);
+        passEncoder.end();
+        dye.swap();
+      }
+
+      // Advect velocity (downsampled)
+      {
+        const passEncoder = commandEncoder.beginRenderPass({
+          colorAttachments: [
+            {
+              view: velocity.write.createView(),
+              clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+              storeOp: "store",
+              loadOp: "clear",
+            },
+          ],
+        });
+        passEncoder.setPipeline(advectVelocityPipeline);
+        passEncoder.setBindGroup(0, mainBindGroup);
+        passEncoder.setBindGroup(1, bindDyeVelocity);
+        passEncoder.draw(4, 1, 0, 0);
+        passEncoder.end();
+        velocity.swap();
+      }
     }
 
     {
@@ -511,7 +541,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: pressure.read.createView() }],
-        })
+        }),
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
@@ -537,7 +567,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: velocity.read.createView() }],
-        })
+        }),
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
@@ -562,7 +592,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: pressure.read.createView() }],
-        })
+        }),
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
@@ -591,7 +621,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
             { binding: 0, resource: pressure.read.createView() },
             { binding: 1, resource: velocity.read.createView() },
           ],
-        })
+        }),
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
@@ -617,7 +647,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         device.createBindGroup({
           layout: floatLayout,
           entries: [{ binding: 0, resource: velocity.read.createView() }],
-        })
+        }),
       );
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
@@ -625,32 +655,11 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       velocity.swap();
     }
 
-    {
-      const currentTexture = context.getCurrentTexture();
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [
-          {
-            view: currentTexture.createView(),
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-            storeOp: "store",
-            loadOp: "clear",
-          },
-        ],
-      });
-      passEncoder.setPipeline(displayPipeline);
-      passEncoder.setBindGroup(0, displayBindGroup);
-      passEncoder.setBindGroup(
-        1,
-        device.createBindGroup({
-          layout: displayLayout,
-          entries: [{ binding: 0, resource: dye.read.createView() }],
-        })
-      );
-      passEncoder.draw(4, 1, 0, 0);
-      passEncoder.end();
-    }
-
     device.queue.submit([commandEncoder.finish()]);
+
+    for (const mouse of touches.values()) {
+      device.queue.writeBuffer(mouse.uniform, 6 << 2, new Float32Array([0, 0, mouse.x, mouse.y]));
+    }
 
     animation = requestAnimationFrame(frame);
   };

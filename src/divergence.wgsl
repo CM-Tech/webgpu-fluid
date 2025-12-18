@@ -1,40 +1,33 @@
 struct Uniforms {
-    resolution: vec2<i32>,
+    simResolution: vec2<i32>,
+    dyeResolution: vec2<i32>,
 };
 @group(0) @binding(0) var<uniform> u : Uniforms;
 
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 
-fn sampleVelocity(coord: vec2<i32>) -> vec3<f32> {
-    var exists = 1.0;
-
-    if (coord.x < 0 || coord.x > (u.resolution.x) - 1 || coord.y < 0 || coord.y > (u.resolution.y) - 1) {
-        exists = 0.0;
+fn sampleVelocity(coord: vec2<i32>) -> vec2<f32> {
+    var negate = vec2<f32>(1.0);
+    var clamped = clamp(coord, vec2<i32>(0), u.simResolution - 1);
+    
+    // Negate components that were clamped
+    if (clamped.x != coord.x) {
+        negate.x = -1.0;
     }
-    var W= u.resolution.x;
-    if(u.resolution.y < W){
-        W=u.resolution.y;
+    if (clamped.y != coord.y) {
+        negate.y = -1.0;
     }
-    if(distance(vec2<f32>(u.resolution)/2.0,vec2<f32>(coord)) > f32(W)/2.0) {
-        exists = 0.0;
-    }
-    var q = textureLoad(velocity, coord, 0).xy;
-    return vec3<f32>(q * exists, exists);
+    
+    return textureLoad(velocity, clamped, 0).xy * negate;
 }
 
 @fragment
 fn divergence(@builtin(position) coords: vec4<f32>) -> @location(0) f32 {
     var uv = vec2<i32>(coords.xy);
-    var L = sampleVelocity(uv - vec2<i32>(1, 0)).xz;
-    var R = sampleVelocity(uv + vec2<i32>(1, 0)).xz;
-    R.x = -R.x;
-    var T = sampleVelocity(uv - vec2<i32>(0, 1)).yz;
-    var B = sampleVelocity(uv + vec2<i32>(0, 1)).yz;
-    B.x = -B.x;
+    var L = sampleVelocity(uv - vec2<i32>(1, 0)).x;
+    var R = sampleVelocity(uv + vec2<i32>(1, 0)).x;
+    var T = sampleVelocity(uv - vec2<i32>(0, 1)).y;
+    var B = sampleVelocity(uv + vec2<i32>(0, 1)).y;
 
-    var Q = L + T + R + B;
-    if (Q.y < 1.0) {
-        return 0.0; 
-    }
-    return -Q.x / Q.y;
+    return (R - L + B - T) * 0.5;
 }

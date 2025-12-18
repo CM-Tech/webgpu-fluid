@@ -1,5 +1,6 @@
 struct Uniforms {
-    resolution: vec2<i32>,
+    simResolution: vec2<i32>,
+    dyeResolution: vec2<i32>,
 };
 @group(0) @binding(0) var<uniform> u : Uniforms;
 
@@ -15,50 +16,35 @@ struct Touch {
 
 @group(2) @binding(0) var<uniform> touch : Touch;
 
-let radius = 400.0;
-
-struct Output {
-    @location(0) dye: vec4<f32>,
-    @location(1) velocity: vec4<f32>,
-}
+const radius = 400.0;
 
 fn closestPoint(start: vec2<f32>, end: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
-    // Break ab appart into components a and b
     var a = start;
     var b = end;
     if (dot(b - a, b - a) < 0.000001) {
         return a;
     }
-
-    // Project c onto ab, computing the 
-    // paramaterized position d(t) = a + t * (b - a)
     var t = dot(c - a, b - a) / dot(b - a, b - a);
-
-    // Clamp T to a 0-1 range. If t was < 0 or > 1
-    // then the closest point was outside the line!
-    if (t < 0.0) {
-        t = 0.0;
-    }
-    if (t > 1.0) {
-        t = 1.0;
-    }
-
-    // Compute the projected position from the clamped t
-    var d = vec2<f32>(a + t * (b - a));
-
-    // Return result
-    return d;
+    t = clamp(t, 0.0, 1.0);
+    return a + t * (b - a);
 }
 
 @fragment
-fn splat(@builtin(position) coords: vec4<f32>) -> Output {
+fn splat_dye(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
     var coord = vec2<i32>(coords.xy);
     var p = coords.xy - closestPoint(touch.point, touch.oldPoint, coords.xy);
     var strength = exp(-dot(p, p) / radius);
     var dyeBase = textureLoad(dye, coord, 0).rgb;
+    return vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
+}
+
+@fragment
+fn splat_velocity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
+    var coord = vec2<i32>(coords.xy);
+    var upsample = vec2<f32>(u.dyeResolution) / vec2<f32>(u.simResolution);
+    var coordF = vec2<f32>(coord) * upsample;
+    var p = coordF - closestPoint(touch.point, touch.oldPoint, coordF);
+    var strength = exp(-dot(p, p) / radius);
     var velocityBase = textureLoad(velocity, coord, 0).xy;
-    var out: Output;
-    out.dye = vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
-    out.velocity = vec4<f32>(velocityBase + strength * touch.velocity, 0., 1.0);
-    return out;
+    return velocityBase + strength * touch.velocity;
 }

@@ -5,6 +5,5 @@ export default defineConfig({
   plugins: [solidPlugin({ hot: false })],
   build: {
     target: "esnext",
-    polyfillDynamicImport: false,
   },
 });
