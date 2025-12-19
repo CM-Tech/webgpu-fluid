@@ -18,33 +18,33 @@ struct Touch {
 
 const radius = 400.0;
 
-fn closestPoint(start: vec2<f32>, end: vec2<f32>, c: vec2<f32>) -> vec2<f32> {
-    var a = start;
-    var b = end;
+fn strength(dist: vec2<f32>) -> f32 {
+    return exp(-dot(dist, dist) / radius);
+}
+
+fn distClosestPoint(c: vec2<f32>) -> f32 {
+    var a = touch.point;
+    var b = touch.oldPoint;
     if (dot(b - a, b - a) < 0.000001) {
-        return a;
+        return strength(c - a);
     }
     var t = dot(c - a, b - a) / dot(b - a, b - a);
     t = clamp(t, 0.0, 1.0);
-    return a + t * (b - a);
+    return strength(c - (a + t * (b - a)));
 }
 
 @fragment
-fn splat_dye(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
-    var coord = vec2<i32>(coords.xy);
-    var p = coords.xy - closestPoint(touch.point, touch.oldPoint, coords.xy);
-    var strength = exp(-dot(p, p) / radius);
-    var dyeBase = textureLoad(dye, coord, 0).rgb;
-    return vec4<f32>(dyeBase * (1.0 - strength) + strength * touch.color.rgb, 1.0);
+fn splatDye(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
+    var dyeBase = textureLoad(dye, vec2<i32>(coords.xy), 0).rgb;
+    var p = distClosestPoint(coords.xy);
+    var color = mix(dyeBase, touch.color.rgb, p);
+    return vec4<f32>(color, 1.0);
 }
 
 @fragment
-fn splat_velocity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
-    var coord = vec2<i32>(coords.xy);
+fn splatVelocity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
+    var velocityBase = textureLoad(velocity, vec2<i32>(coords.xy), 0).xy;
     var upsample = vec2<f32>(u.dyeResolution) / vec2<f32>(u.simResolution);
-    var coordF = vec2<f32>(coord) * upsample;
-    var p = coordF - closestPoint(touch.point, touch.oldPoint, coordF);
-    var strength = exp(-dot(p, p) / radius);
-    var velocityBase = textureLoad(velocity, coord, 0).xy;
-    return velocityBase + strength * touch.velocity;
+    var p = distClosestPoint(coords.xy * upsample);
+    return velocityBase + p * touch.velocity;
 }
