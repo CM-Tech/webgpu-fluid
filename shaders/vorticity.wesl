@@ -1,14 +1,6 @@
-struct Uniforms {
-    simResolution: vec2<i32>,
-    dyeResolution: vec2<i32>,
-};
-@group(0) @binding(0) var<uniform> u : Uniforms;
+import common::{u, timestep, EPSILON, curlAmount};
 
 @group(1) @binding(0) var velocity : texture_2d<f32>;
-
-const EPSILON = 2.4414e-4; // 2^-12
-const timestep = 0.016666;
-const curlAmount = 12.0;
 
 fn curl(coords: vec2<i32>) -> f32 {
     var L = textureLoad(velocity, clamp(coords - vec2<i32>(1, 0), vec2<i32>(0), u.simResolution - 1), 0).y;

@@ -1,8 +1,5 @@
-struct Uniforms {
-    simResolution: vec2<i32>,
-    dyeResolution: vec2<i32>,
-};
-@group(0) @binding(0) var<uniform> u : Uniforms;
+import common::u;
+
 @group(1) @binding(0) var divergence : texture_2d<f32>;
 @group(2) @binding(0) var pressure : texture_2d<f32>;
 

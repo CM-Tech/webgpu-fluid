@@ -1,17 +1,8 @@
-struct Uniforms {
-    simResolution: vec2<i32>,
-    dyeResolution: vec2<i32>,
-};
-@group(0) @binding(0) var<uniform> u : Uniforms;
+import common::{u, timestep, dyeDissipation, velocityDissipation, color, texSampler};
 
 @group(1) @binding(0) var dye : texture_2d<f32>;
 @group(1) @binding(1) var velocity : texture_2d<f32>;
-@group(1) @binding(2) var texSampler : sampler;
 
-const timestep = 0.016666;
-const dyeDissipation = 0.5;
-const velocityDissipation = .9;//0.75;
-const color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
 
 struct Output {
     @location(0) value: vec4<f32>,
@@ -47,8 +38,7 @@ fn advectDye(@builtin(position) coords: vec4<f32>) -> Output {
     let res = vec2<f32>(u.dyeResolution);
     let uv = getBfeccUv((coords.xy) / res);
     let startDye = textureSample(dye, texSampler, uv);
-    let dissipation = 1.0 - pow(dyeDissipation, timestep);
-    let col = mix(startDye, color, dissipation);
+    let col = mix(color, startDye, dyeDissipation);
     return Output(col, col);
 }
 
@@ -57,5 +47,5 @@ fn advectVelocity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32
     let res = vec2<f32>(u.simResolution);
     let uv = getBfeccUv((coords.xy) / res);
     let startVelocity = textureSample(velocity, texSampler, uv).xy;
-    return startVelocity * pow(velocityDissipation, timestep);
+    return startVelocity * velocityDissipation;
 }

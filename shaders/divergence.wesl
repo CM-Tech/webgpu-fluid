@@ -1,8 +1,4 @@
-struct Uniforms {
-    simResolution: vec2<i32>,
-    dyeResolution: vec2<i32>,
-};
-@group(0) @binding(0) var<uniform> u : Uniforms;
+import common::u;
 
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 

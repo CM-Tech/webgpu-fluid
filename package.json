@@ -16,7 +16,8 @@
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
-    "vite-plugin-solid": "^2.11.10"
+    "vite-plugin-solid": "^2.11.10",
+    "wesl-plugin": "^0.6.49"
   },
   "dependencies": {
     "@solid-primitives/event-listener": "^2.4.3",

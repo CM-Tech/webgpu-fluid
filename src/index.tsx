@@ -9,14 +9,14 @@ import {
 } from "solid-js";
 import type { Accessor } from "solid-js";
 import { render } from "solid-js/web";
-import vertWGSL from "./vert.wgsl?raw";
-import advectWGSL from "./advect.wgsl?raw";
-import clearWGSL from "./clear.wgsl?raw";
-import divergenceWGSL from "./divergence.wgsl?raw";
-import jacobiWGSL from "./jacobi.wgsl?raw";
-import gradientWGSL from "./gradient.wgsl?raw";
-import vorticityWGSL from "./vorticity.wgsl?raw";
-import splatWGSL from "./splat.wgsl?raw";
+import vertWGSL from "../shaders/vert.wesl?static";
+import advectWGSL from "../shaders/advect.wesl?static";
+import clearWGSL from "../shaders/clear.wesl?static";
+import divergenceWGSL from "../shaders/divergence.wesl?static";
+import jacobiWGSL from "../shaders/jacobi.wesl?static";
+import gradientWGSL from "../shaders/gradient.wesl?static";
+import vorticityWGSL from "../shaders/vorticity.wesl?static";
+import splatWGSL from "../shaders/splat.wesl?static";
 import { makeEventListener } from "@solid-primitives/event-listener";
 import "./index.css";
 
@@ -78,8 +78,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       label: name + " layout",
     }),
   )({
-    main: ["buffer"],
-    dyeVelocity: ["texture", "texture", "sampler"],
+    main: ["buffer", "sampler"],
+    dyeVelocity: ["texture", "texture"],
     float: ["texture"],
     gradient: ["texture", "texture"],
     splatTouch: ["buffer"],
@@ -149,20 +149,19 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     });
 
   class Swappable {
-    a: Accessor<GPUTexture>;
-    b: Accessor<GPUTexture>;
+    arr: [Accessor<GPUTexture>, Accessor<GPUTexture>];
+    parity = 0;
     constructor(format?: GPUTextureFormat) {
-      this.a = createTexture(format);
-      this.b = createTexture(format);
+      this.arr = [createTexture(format), createTexture(format)];
     }
     get read() {
-      return this.a();
+      return this.arr[this.parity]();
     }
     get write() {
-      return this.b();
+      return this.arr[1 - this.parity]();
     }
     swap() {
-      [this.a, this.b] = [this.b, this.a];
+      this.parity = 1 - this.parity;
     }
   }
 
@@ -191,7 +190,11 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     minFilter: "linear",
   });
 
-  const randomColor = () => [Math.random() * 2 + 0.5, Math.random() * 2 + 0.5, Math.random() * 2 + 0.5];
+  const randomColor = (t: number) => [
+    Math.sin(t + 0) * 0.8 + 0.8,
+    Math.sin(t + 2) * 0.8 + 0.8,
+    Math.sin(t + 4) * 0.8 + 0.8,
+  ];
 
   const touches: Map<number, VelTouch> = new Map();
   const createTouch = (touch: { clientX: number; clientY: number; identifier: number }) => {
@@ -204,7 +207,11 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       uniform: makeUniformsPerTouch(),
     };
 
-    device.queue.writeBuffer(m.uniform, 0 << 2, new Float32Array([...randomColor(), 1, m.x, m.y, 0, 0, m.x, m.y]));
+    device.queue.writeBuffer(
+      m.uniform,
+      0 << 2,
+      new Float32Array([...randomColor(Math.random() * Math.PI * 2), 1, m.x, m.y, 0, 0, m.x, m.y]),
+    );
 
     touches.set(m.identifier, m);
   };
@@ -268,33 +275,53 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       resource,
     }));
 
+  class BindPair {
+    arr: Accessor<GPUBindGroup[]>;
+    constructor(
+      layout: GPUBindGroupLayout,
+      private resources: Swappable[],
+      private label: string,
+    ) {
+      this.arr = createMemo(() => [
+        device.createBindGroup({
+          layout,
+          entries: entries(resources.map((x) => x.arr[0]().createView())),
+          label: `${label} [0]`,
+        }),
+        device.createBindGroup({
+          layout,
+          entries: entries(resources.map((x) => x.arr[1]().createView())),
+          label: `${label} [1]`,
+        }),
+      ]);
+    }
+    read() {
+      const parity = this.resources[0].parity;
+      if (this.resources.some((r) => r.parity !== parity)) {
+        console.error(`Inconsistent parity in BindPair read: ${this.label}`);
+      }
+      return this.arr()[parity];
+    }
+  }
+
   const mainBindGroup = device.createBindGroup({
     layout: layouts.main,
     label: "main bind group",
-    entries: entries([{ buffer: uniforms }]),
+    entries: entries([{ buffer: uniforms }, sampler]),
   });
-  const divergenceReadGroup = device.createBindGroup({
-    layout: layouts.float,
-    label: "divergence read bind group",
-    entries: entries([divergenceTex().createView()]),
-  });
-  const dyeVelocityBindGroup = () =>
-    device.createBindGroup({
-      layout: layouts.dyeVelocity,
-      label: "dye velocity bind group",
-      entries: entries([dye.read.createView(), velocity.read.createView(), sampler]),
-    });
-  const floatBindGroup = (texture: GPUTexture) =>
+
+  const divergenceReadGroup = createMemo(() =>
     device.createBindGroup({
       layout: layouts.float,
-      entries: entries([texture.createView()]),
-    });
-  const gradientBindGroup = (p: GPUTexture, v: GPUTexture) =>
-    device.createBindGroup({
-      layout: layouts.gradient,
-      label: "gradient bind group",
-      entries: entries([p.createView(), v.createView()]),
-    });
+      label: "divergence read bind group",
+      entries: entries([divergenceTex().createView()]),
+    }),
+  );
+
+  const dyeVelocityPair = new BindPair(layouts.dyeVelocity, [dye, velocity], "dye velocity");
+  const pressurePair = new BindPair(layouts.float, [pressure], "pressure");
+  const velocityPair = new BindPair(layouts.float, [velocity], "velocity");
+  const gradientPair = new BindPair(layouts.gradient, [pressure, velocity], "gradient");
 
   const colorAttachment = (view: GPUTexture): GPURenderPassColorAttachment => ({
     view: view.createView(),
@@ -326,32 +353,37 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       passEncoder.end();
     };
 
-    const renderAndSwap = (fbo: Swappable, pipeline: GPURenderPipeline, bindGroups: GPUBindGroup[]) => {
-      renderPass([fbo.write], pipeline, bindGroups);
-      fbo.swap();
-    };
-
     for (const mouse of touches.values()) {
-      const bindDyeVelocity = dyeVelocityBindGroup();
       const bindTouch = device.createBindGroup({
         layout: layouts.splatTouch,
         entries: [{ binding: 0, resource: { buffer: mouse.uniform } }],
       });
-      renderAndSwap(dye, pipelines.splatDye, [bindDyeVelocity, bindTouch]);
-      renderAndSwap(velocity, pipelines.splatVelocity, [bindDyeVelocity, bindTouch]);
+      const dvPair = dyeVelocityPair.read();
+      renderPass([dye.write], pipelines.splatDye, [dvPair, bindTouch]);
+      renderPass([velocity.write], pipelines.splatVelocity, [dvPair, bindTouch]);
+      dye.swap();
+      velocity.swap();
     }
-    const bindDyeVelocity = dyeVelocityBindGroup();
+
     const currentTexture = context.getCurrentTexture();
-    renderPass([dye.write, currentTexture], pipelines.advectDye, [bindDyeVelocity]);
+    const dvPair = dyeVelocityPair.read();
+    renderPass([dye.write, currentTexture], pipelines.advectDye, [dvPair]);
+    renderPass([velocity.write], pipelines.advectVelocity, [dvPair]);
     dye.swap();
-    renderAndSwap(velocity, pipelines.advectVelocity, [bindDyeVelocity]);
-    renderAndSwap(pressure, pipelines.clear, [floatBindGroup(pressure.read)]);
-    renderPass([divergenceTex()], pipelines.divergence, [floatBindGroup(velocity.read)]);
-    for (let i = 0; i < 25; i++) {
-      renderAndSwap(pressure, pipelines.jacobi, [divergenceReadGroup, floatBindGroup(pressure.read)]);
+    velocity.swap();
+
+    renderPass([divergenceTex()], pipelines.divergence, [velocityPair.read()]);
+    renderPass([pressure.write], pipelines.clear, [pressurePair.read()]);
+    pressure.swap();
+    const iters = 24 + (velocity.parity ^ pressure.parity);
+    for (let i = 0; i < iters; i++) {
+      renderPass([pressure.write], pipelines.jacobi, [divergenceReadGroup(), pressurePair.read()]);
+      pressure.swap();
     }
-    renderAndSwap(velocity, pipelines.gradient, [gradientBindGroup(pressure.read, velocity.read)]);
-    renderAndSwap(velocity, pipelines.vorticity, [floatBindGroup(velocity.read)]);
+    renderPass([velocity.write], pipelines.gradient, [gradientPair.read()]);
+    velocity.swap();
+    renderPass([velocity.write], pipelines.vorticity, [velocityPair.read()]);
+    velocity.swap();
 
     device.queue.submit([commandEncoder.finish()]);
 
@@ -359,12 +391,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       device.queue.writeBuffer(mouse.uniform, 6 << 2, new Float32Array([0, 0, mouse.x, mouse.y]));
     }
     const m = touches.get(-1);
-    if (m) {
-      const red = Math.sin(t + 0) * 0.8 + 0.8;
-      const green = Math.sin(t + 2) * 0.8 + 0.8;
-      const blue = Math.sin(t + 4) * 0.8 + 0.8;
-      device.queue.writeBuffer(m.uniform, 0 << 2, new Float32Array([red, green, blue]));
-    }
+    if (m) device.queue.writeBuffer(m.uniform, 0 << 2, new Float32Array(randomColor(t)));
 
     t += 0.1;
     animation = requestAnimationFrame(frame);

@@ -36,6 +36,9 @@ importers:
       vite-plugin-solid:
         specifier: ^2.11.10
         version: 2.11.10(solid-js@1.9.10)(vite@7.3.0(@types/node@25.0.3))
+      wesl-plugin:
+        specifier: ^0.6.49
+        version: 0.6.49(esbuild@0.27.2)(vite@7.3.0(@types/node@25.0.3))
 
 packages:
 
@@ -433,6 +436,11 @@ packages:
   '@webgpu/types@0.1.68':
     resolution: {integrity: sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA==}
 
+  acorn@8.15.0:
+    resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
+    engines: {node: '>=0.4.0'}
+    hasBin: true
+
   babel-plugin-jsx-dom-expressions@0.40.3:
     resolution: {integrity: sha512-5HOwwt0BYiv/zxl7j8Pf2bGL6rDXfV6nUhLs8ygBX+EFJXzBPHM/euj9j/6deMZ6wa52Wb2PBaAV5U/jKwIY1w==}
     peerDependencies:
@@ -535,6 +543,9 @@ packages:
     resolution: {integrity: sha512-eRtbOb1N5iyH0tkQDAoQ4Ipsp/5qSR79Dzrz8hEPxRX10RWWR/iQXdoKmBSRCThY1Fh5EhISDtpSc93fpxUniQ==}
     engines: {node: '>=12.13'}
 
+  mini-parse@0.6.41:
+    resolution: {integrity: sha512-XUQKrs2lzLXcJkyX6eIc0Bsa2nSURodYSgtPbO1SL4x6rVYmbK6v4DLqXfYIJMenas4WTn/bx5HmhjeYMS7H2g==}
+
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -608,6 +619,10 @@ packages:
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
+  unplugin@2.3.11:
+    resolution: {integrity: sha512-5uKD0nqiYVzlmCRs01Fhs2BdkEgBS3SAVP6ndrBsuK42iC2+JHyxM05Rm9G8+5mkmRtzMZGY8Ct5+mliZxU/Ww==}
+    engines: {node: '>=18.12.0'}
+
   update-browserslist-db@1.2.3:
     resolution: {integrity: sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==}
     hasBin: true
@@ -671,6 +686,38 @@ packages:
     peerDependenciesMeta:
       vite:
         optional: true
+
+  webpack-virtual-modules@0.6.2:
+    resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
+
+  wesl-plugin@0.6.49:
+    resolution: {integrity: sha512-1qX/5NviMLmvjltoNIGGeNhY8ugCNgHsxNhzl+5/Dapj1eel+m5lTDi0ITdK9crwOSzSehMU/K25816tR73MuQ==}
+    peerDependencies:
+      '@farmfe/core': '>=1'
+      '@nuxt/kit': ^3
+      '@nuxt/schema': ^3
+      esbuild: '*'
+      rollup: ^3
+      vite: '>=3'
+      webpack: ^4 || ^5
+    peerDependenciesMeta:
+      '@farmfe/core':
+        optional: true
+      '@nuxt/kit':
+        optional: true
+      '@nuxt/schema':
+        optional: true
+      esbuild:
+        optional: true
+      rollup:
+        optional: true
+      vite:
+        optional: true
+      webpack:
+        optional: true
+
+  wesl@0.6.49:
+    resolution: {integrity: sha512-nM1DgWqoh9CtcneIonMGlp34suBJDKY5Wl5q/25eS+ZrKm6BPUrGe/bNyb8+h3lmhT+Dz8AVEuHR6QNV5CGtPA==}
 
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
@@ -989,6 +1036,8 @@ snapshots:
 
   '@webgpu/types@0.1.68': {}
 
+  acorn@8.15.0: {}
+
   babel-plugin-jsx-dom-expressions@0.40.3(@babel/core@7.28.5):
     dependencies:
       '@babel/core': 7.28.5
@@ -1087,6 +1136,8 @@ snapshots:
     dependencies:
       is-what: 4.1.16
 
+  mini-parse@0.6.41: {}
+
   ms@2.1.3: {}
 
   nanoid@3.3.11: {}
@@ -1171,6 +1222,13 @@ snapshots:
 
   undici-types@7.16.0: {}
 
+  unplugin@2.3.11:
+    dependencies:
+      '@jridgewell/remapping': 2.3.5
+      acorn: 8.15.0
+      picomatch: 4.0.3
+      webpack-virtual-modules: 0.6.2
+
   update-browserslist-db@1.2.3(browserslist@4.28.1):
     dependencies:
       browserslist: 4.28.1
@@ -1205,5 +1263,19 @@ snapshots:
   vitefu@1.1.1(vite@7.3.0(@types/node@25.0.3)):
     optionalDependencies:
       vite: 7.3.0(@types/node@25.0.3)
+
+  webpack-virtual-modules@0.6.2: {}
+
+  wesl-plugin@0.6.49(esbuild@0.27.2)(vite@7.3.0(@types/node@25.0.3)):
+    dependencies:
+      unplugin: 2.3.11
+      wesl: 0.6.49
+    optionalDependencies:
+      esbuild: 0.27.2
+      vite: 7.3.0(@types/node@25.0.3)
+
+  wesl@0.6.49:
+    dependencies:
+      mini-parse: 0.6.41
 
   yallist@3.1.1: {}
