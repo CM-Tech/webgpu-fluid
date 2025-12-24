@@ -1,4 +1,4 @@
-import common::{u, EPSILON, radius};
+import package::common::{u, EPSILON, radius};
 
 @group(1) @binding(0) var dye : texture_2d<f32>;
 @group(1) @binding(1) var velocity : texture_2d<f32>;

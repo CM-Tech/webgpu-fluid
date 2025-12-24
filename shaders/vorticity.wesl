@@ -1,4 +1,4 @@
-import common::{u, timestep, EPSILON, curlAmount};
+import package::common::{u, timestep, EPSILON, curlAmount};
 
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 

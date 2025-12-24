@@ -1,4 +1,4 @@
-import common::{u, pressureDissipation};
+import package::common::{u, pressureDissipation};
 
 @group(1) @binding(0) var pressure : texture_2d<f32>;
 

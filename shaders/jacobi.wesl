@@ -1,4 +1,4 @@
-import common::u;
+import package::common::u;
 
 @group(1) @binding(0) var divergence : texture_2d<f32>;
 @group(2) @binding(0) var pressure : texture_2d<f32>;

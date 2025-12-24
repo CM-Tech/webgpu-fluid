@@ -1,4 +1,4 @@
-import common::u;
+import package::common::u;
 
 @group(1) @binding(0) var velocity : texture_2d<f32>;
 
