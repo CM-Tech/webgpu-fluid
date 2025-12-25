@@ -1,7 +1,7 @@
-import package::common::{u, EPSILON, radius};
+import package::common::{EPSILON, radius};
 
-@group(1) @binding(0) var dye : texture_2d<f32>;
-@group(1) @binding(1) var velocity : texture_2d<f32>;
+@group(0) @binding(0) var dye : texture_2d<f32>;
+@group(0) @binding(1) var velocity : texture_2d<f32>;
 
 struct Touch {
     color: vec4<f32>,
@@ -10,7 +10,7 @@ struct Touch {
     oldPoint: vec2<f32>,
 };
 
-@group(2) @binding(0) var<uniform> touch : Touch;
+@group(1) @binding(0) var<uniform> touch : Touch;
 
 fn strength(dist: vec2<f32>) -> f32 {
     return exp(-dot(dist, dist) / radius);
@@ -37,7 +37,7 @@ fn splatDye(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
 @fragment
 fn splatVelocity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
     let velocityBase = textureLoad(velocity, vec2<i32>(coords.xy), 0).xy;
-    let upsample = vec2<f32>(u.dyeResolution) / vec2<f32>(u.simResolution);
+    let upsample = vec2<f32>(textureDimensions(dye)) / vec2<f32>(textureDimensions(velocity));
     let p = distClosestPoint(coords.xy * upsample);
     return velocityBase + p * touch.velocity;
 }

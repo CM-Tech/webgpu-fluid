@@ -1,5 +1,6 @@
-import package::common::{u, timestep, dyeDissipation, velocityDissipation, color, texSampler};
+import package::common::{timestep, dyeDissipation, velocityDissipation, color};
 
+@group(0) @binding(0) var texSampler : sampler;
 @group(1) @binding(0) var dye : texture_2d<f32>;
 @group(1) @binding(1) var velocity : texture_2d<f32>;
 
@@ -10,7 +11,7 @@ struct Output {
 };
 
 fn getBfeccUv(coords: vec2<f32>) -> vec2<f32> {
-    let res = vec2<f32>(u.dyeResolution);
+    let res = vec2<f32>(textureDimensions(dye));
 
     // 1. Initial back-trace (Semi-Lagrangian step)
     let v_start = textureSample(velocity, texSampler, coords).xy;
@@ -35,7 +36,7 @@ fn getBfeccUv(coords: vec2<f32>) -> vec2<f32> {
 
 @fragment
 fn advectDye(@builtin(position) coords: vec4<f32>) -> Output {
-    let res = vec2<f32>(u.dyeResolution);
+    let res = vec2<f32>(textureDimensions(dye));
     let uv = getBfeccUv((coords.xy) / res);
     let startDye = textureSample(dye, texSampler, uv);
     let col = mix(color, startDye, dyeDissipation);
@@ -44,7 +45,7 @@ fn advectDye(@builtin(position) coords: vec4<f32>) -> Output {
 
 @fragment
 fn advectVelocity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
-    let res = vec2<f32>(u.simResolution);
+    let res = vec2<f32>(textureDimensions(velocity));
     let uv = getBfeccUv((coords.xy) / res);
     let startVelocity = textureSample(velocity, texSampler, uv).xy;
     return startVelocity * velocityDissipation;

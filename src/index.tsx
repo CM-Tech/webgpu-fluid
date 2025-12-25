@@ -9,11 +9,13 @@ import {
 } from "solid-js";
 import type { Accessor } from "solid-js";
 import { render } from "solid-js/web";
+import { runBenchmark } from "./benchmark";
 import vertWGSL from "../shaders/vert.wesl?static";
 import advectWGSL from "../shaders/advect.wesl?static";
 import clearWGSL from "../shaders/clear.wesl?static";
 import divergenceWGSL from "../shaders/divergence.wesl?static";
 import jacobiWGSL from "../shaders/jacobi.wesl?static";
+import jacobiComputeWGSL from "../shaders/jacobi_compute.wesl?static";
 import gradientWGSL from "../shaders/gradient.wesl?static";
 import vorticityWGSL from "../shaders/vorticity.wesl?static";
 import splatWGSL from "../shaders/splat.wesl?static";
@@ -47,6 +49,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     clear: device.createShaderModule({ code: clearWGSL }),
     divergence: device.createShaderModule({ code: divergenceWGSL }),
     jacobi: device.createShaderModule({ code: jacobiWGSL }),
+    jacobiCompute: device.createShaderModule({ code: jacobiComputeWGSL }),
     gradient: device.createShaderModule({ code: gradientWGSL }),
     vorticity: device.createShaderModule({ code: vorticityWGSL }),
     splat: device.createShaderModule({ code: splatWGSL }),
@@ -78,20 +81,20 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       label: name + " layout",
     }),
   )({
-    main: ["buffer", "sampler"],
+    main: ["sampler"],
     dyeVelocity: ["texture", "texture"],
     float: ["texture"],
     gradient: ["texture", "texture"],
     splatTouch: ["buffer"],
   });
 
-  const pipeline = (module: GPUShaderModule, targets: GPUColorTargetState[], layout: GPUBindGroupLayout[]) => ({
+  const pipeline = (module: GPUShaderModule, targets: GPUColorTargetState[], layouts: GPUBindGroupLayout[]) => ({
     module,
     targets,
-    layouts: [layouts.main, ...layout],
+    layouts,
   });
 
-  const texFormat = (n: number) => ({ format: ("rgba".slice(0, n) + "16float") as GPUTextureFormat });
+  const fmt = (str: string) => ({ format: (str + "float") as GPUTextureFormat });
 
   const pipelines = mapObject((name, spec: ReturnType<typeof pipeline>) =>
     device.createRenderPipeline({
@@ -112,15 +115,32 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       layout: device.createPipelineLayout({ bindGroupLayouts: spec.layouts, label: name + " pipeline layout" }),
     }),
   )({
-    splatDye: pipeline(shaders.splat, [texFormat(4)], [layouts.dyeVelocity, layouts.splatTouch]),
-    splatVelocity: pipeline(shaders.splat, [texFormat(2)], [layouts.dyeVelocity, layouts.splatTouch]),
-    advectDye: pipeline(shaders.advect, [texFormat(4), { format: presentationFormat }], [layouts.dyeVelocity]),
-    advectVelocity: pipeline(shaders.advect, [texFormat(2)], [layouts.dyeVelocity]),
-    clear: pipeline(shaders.clear, [texFormat(1)], [layouts.float]),
-    divergence: pipeline(shaders.divergence, [texFormat(1)], [layouts.float]),
-    jacobi: pipeline(shaders.jacobi, [texFormat(1)], [layouts.float, layouts.float]),
-    gradient: pipeline(shaders.gradient, [texFormat(2)], [layouts.gradient]),
-    vorticity: pipeline(shaders.vorticity, [texFormat(2)], [layouts.float]),
+    splatDye: pipeline(shaders.splat, [fmt("rgba16")], [layouts.dyeVelocity, layouts.splatTouch]),
+    splatVelocity: pipeline(shaders.splat, [fmt("rg16")], [layouts.dyeVelocity, layouts.splatTouch]),
+    advectDye: pipeline(
+      shaders.advect,
+      [fmt("rgba16"), { format: presentationFormat }],
+      [layouts.main, layouts.dyeVelocity],
+    ),
+    advectVelocity: pipeline(shaders.advect, [fmt("rg16")], [layouts.main, layouts.dyeVelocity]),
+    clear: pipeline(shaders.clear, [fmt("r32")], [layouts.float]),
+    divergence: pipeline(shaders.divergence, [fmt("r16")], [layouts.float]),
+    jacobi: pipeline(shaders.jacobi, [fmt("r32")], [layouts.float, layouts.float]),
+    gradient: pipeline(shaders.gradient, [fmt("rg16")], [layouts.gradient]),
+    vorticity: pipeline(shaders.vorticity, [fmt("rg16")], [layouts.float]),
+  });
+
+  const computeLayout = device.createBindGroupLayout({
+    entries: [
+      { binding: 0, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: "float" } },
+      { binding: 1, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: "float" } },
+      { binding: 2, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: "write-only", format: "r32float" } },
+    ],
+  });
+
+  const jacobiComputePipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
+    compute: { module: shaders.jacobiCompute, entryPoint: "main" },
   });
 
   const dwidth = () => width() >> DOWNSAMPLE;
@@ -134,7 +154,10 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     });
   });
 
-  const createTexture = (format?: GPUTextureFormat) =>
+  const createTexture = (
+    format?: GPUTextureFormat,
+    usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+  ) =>
     createMemo((last?: GPUTexture) => {
       if (last) last.destroy();
       const newTex = device.createTexture({
@@ -142,7 +165,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         dimension: "2d",
         mipLevelCount: 1,
         size: format == "rgba16float" ? [width(), height()] : [dwidth(), dheight()],
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+        usage,
       });
 
       return newTex;
@@ -151,8 +174,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   class Swappable {
     arr: [Accessor<GPUTexture>, Accessor<GPUTexture>];
     parity = 0;
-    constructor(format?: GPUTextureFormat) {
-      this.arr = [createTexture(format), createTexture(format)];
+    constructor(format?: GPUTextureFormat, usage?: number) {
+      this.arr = [createTexture(format, usage), createTexture(format, usage)];
     }
     get read() {
       return this.arr[this.parity]();
@@ -167,7 +190,13 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
   const dye = new Swappable("rgba16float");
   const velocity = new Swappable("rg16float");
-  const pressure = new Swappable("r16float");
+  const pressure = new Swappable(
+    "r32float",
+    GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_DST |
+      GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.STORAGE_BINDING,
+  );
   const divergenceTex = createTexture("r16float");
 
   const uniforms = device.createBuffer({
@@ -307,16 +336,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const mainBindGroup = device.createBindGroup({
     layout: layouts.main,
     label: "main bind group",
-    entries: entries([{ buffer: uniforms }, sampler]),
+    entries: entries([sampler]),
   });
-
-  const divergenceReadGroup = createMemo(() =>
-    device.createBindGroup({
-      layout: layouts.float,
-      label: "divergence read bind group",
-      entries: entries([divergenceTex().createView()]),
-    }),
-  );
 
   const dyeVelocityPair = new BindPair(layouts.dyeVelocity, [dye, velocity], "dye velocity");
   const pressurePair = new BindPair(layouts.float, [pressure], "pressure");
@@ -348,7 +369,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
         label: pipeline.label,
       });
       passEncoder.setPipeline(pipeline);
-      [mainBindGroup, ...bindGroups].forEach((bg, i) => passEncoder.setBindGroup(i, bg));
+      bindGroups.forEach((bg, i) => passEncoder.setBindGroup(i, bg));
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.end();
     };
@@ -367,8 +388,8 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
     const currentTexture = context.getCurrentTexture();
     const dvPair = dyeVelocityPair.read();
-    renderPass([dye.write, currentTexture], pipelines.advectDye, [dvPair]);
-    renderPass([velocity.write], pipelines.advectVelocity, [dvPair]);
+    renderPass([dye.write, currentTexture], pipelines.advectDye, [mainBindGroup, dvPair]);
+    renderPass([velocity.write], pipelines.advectVelocity, [mainBindGroup, dvPair]);
     dye.swap();
     velocity.swap();
 
@@ -377,7 +398,21 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     pressure.swap();
     const iters = 24 + (velocity.parity ^ pressure.parity);
     for (let i = 0; i < iters; i++) {
-      renderPass([pressure.write], pipelines.jacobi, [divergenceReadGroup(), pressurePair.read()]);
+      const passEncoder = commandEncoder.beginComputePass();
+      passEncoder.setPipeline(jacobiComputePipeline);
+      passEncoder.setBindGroup(
+        0,
+        device.createBindGroup({
+          layout: computeLayout,
+          entries: [
+            { binding: 0, resource: divergenceTex().createView() },
+            { binding: 1, resource: pressure.read.createView() },
+            { binding: 2, resource: pressure.write.createView() },
+          ],
+        }),
+      );
+      passEncoder.dispatchWorkgroups(Math.ceil(dwidth() / 8), Math.ceil(dheight() / 8));
+      passEncoder.end();
       pressure.swap();
     }
     renderPass([velocity.write], pipelines.gradient, [gradientPair.read()]);
@@ -399,6 +434,24 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
   onMount(frame);
   onCleanup(() => cancelAnimationFrame(animation));
+
+  makeEventListener(window, "keydown", (e) => {
+    if (e.key === "b") {
+      runBenchmark(
+        device,
+        pipelines.jacobi,
+        jacobiComputePipeline,
+        layouts.float,
+        computeLayout,
+        divergenceTex,
+        pressure,
+        pressurePair,
+        dwidth,
+        dheight,
+        colorAttachment,
+      );
+    }
+  });
 };
 
 const App = () => {
@@ -414,7 +467,10 @@ const App = () => {
   const [gpu] = createResource(async () => {
     const adapter = await navigator.gpu?.requestAdapter();
     if (!adapter) throw new Error("No GPU support");
-    return await adapter.requestDevice();
+    const canTimestamp = adapter.features.has("timestamp-query");
+    return await adapter.requestDevice({
+      requiredFeatures: canTimestamp ? ["timestamp-query", "float32-filterable"] : ["float32-filterable"],
+    });
   });
 
   createEffect(() => {

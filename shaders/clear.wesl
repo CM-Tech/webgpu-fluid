@@ -1,6 +1,6 @@
-import package::common::{u, pressureDissipation};
+import package::common::pressureDissipation;
 
-@group(1) @binding(0) var pressure : texture_2d<f32>;
+@group(0) @binding(0) var pressure : texture_2d<f32>;
 
 @fragment
 fn clear(@builtin(position) coords: vec4<f32>) -> @location(0) f32 {
