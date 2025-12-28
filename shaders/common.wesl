@@ -8,3 +8,4 @@ const velocityDissipation = .98;
 const color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
 const curlAmount = 12.0;
 const pressureDissipation = 0.8;
+const sorOmega = 1.5;

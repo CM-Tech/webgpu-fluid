@@ -9,13 +9,11 @@ import {
 } from "solid-js";
 import type { Accessor } from "solid-js";
 import { render } from "solid-js/web";
-import { runBenchmark } from "./benchmark";
 import vertWGSL from "../shaders/vert.wesl?static";
 import advectWGSL from "../shaders/advect.wesl?static";
 import clearWGSL from "../shaders/clear.wesl?static";
 import divergenceWGSL from "../shaders/divergence.wesl?static";
-import jacobiWGSL from "../shaders/jacobi.wesl?static";
-import jacobiComputeWGSL from "../shaders/jacobi_compute.wesl?static";
+import gaussSeidelWGSL from "../shaders/gauss_seidel.wesl?static";
 import gradientWGSL from "../shaders/gradient.wesl?static";
 import vorticityWGSL from "../shaders/vorticity.wesl?static";
 import splatWGSL from "../shaders/splat.wesl?static";
@@ -27,7 +25,7 @@ const mapObject =
     <T extends Record<string, U>>(obj: T) =>
       Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, fn(k, v as U)])) as { [K in keyof T]: ReturnType<F> };
 
-const DOWNSAMPLE = 0;
+const DOWNSAMPLE = 1;
 type VelTouch = {
   identifier: number;
   x: number;
@@ -48,11 +46,10 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     advect: device.createShaderModule({ code: advectWGSL }),
     clear: device.createShaderModule({ code: clearWGSL }),
     divergence: device.createShaderModule({ code: divergenceWGSL }),
-    jacobi: device.createShaderModule({ code: jacobiWGSL }),
-    jacobiCompute: device.createShaderModule({ code: jacobiComputeWGSL }),
     gradient: device.createShaderModule({ code: gradientWGSL }),
     vorticity: device.createShaderModule({ code: vorticityWGSL }),
     splat: device.createShaderModule({ code: splatWGSL }),
+    gaussSeidel: device.createShaderModule({ code: gaussSeidelWGSL }),
   };
 
   const layouts = mapObject((name, entries: ("buffer" | "texture" | "sampler")[]) =>
@@ -125,7 +122,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     advectVelocity: pipeline(shaders.advect, [fmt("rg16")], [layouts.main, layouts.dyeVelocity]),
     clear: pipeline(shaders.clear, [fmt("r32")], [layouts.float]),
     divergence: pipeline(shaders.divergence, [fmt("r16")], [layouts.float]),
-    jacobi: pipeline(shaders.jacobi, [fmt("r32")], [layouts.float, layouts.float]),
     gradient: pipeline(shaders.gradient, [fmt("rg16")], [layouts.gradient]),
     vorticity: pipeline(shaders.vorticity, [fmt("rg16")], [layouts.float]),
   });
@@ -138,9 +134,14 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     ],
   });
 
-  const jacobiComputePipeline = device.createComputePipeline({
+  const gaussSeidelRedPipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
-    compute: { module: shaders.jacobiCompute, entryPoint: "jacobiCompute" },
+    compute: { module: shaders.gaussSeidel, entryPoint: "main_red" },
+  });
+
+  const gaussSeidelBlackPipeline = device.createComputePipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
+    compute: { module: shaders.gaussSeidel, entryPoint: "main_black" },
   });
 
   const dwidth = () => width() >> DOWNSAMPLE;
@@ -396,10 +397,35 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
     renderPass([divergenceTex()], pipelines.divergence, [velocityPair.read()]);
     renderPass([pressure.write], pipelines.clear, [pressurePair.read()]);
     pressure.swap();
-    const iters = 24 + (velocity.parity ^ pressure.parity);
+    const iters = 16;
     for (let i = 0; i < iters; i++) {
+      const runPass = (pipeline: GPUComputePipeline) => {
+        const passEncoder = commandEncoder.beginComputePass();
+        passEncoder.setPipeline(pipeline);
+        passEncoder.setBindGroup(
+          0,
+          device.createBindGroup({
+            layout: computeLayout,
+            entries: [
+              { binding: 0, resource: divergenceTex().createView() },
+              { binding: 1, resource: pressure.read.createView() },
+              { binding: 2, resource: pressure.write.createView() },
+            ],
+          }),
+        );
+        passEncoder.dispatchWorkgroups(Math.ceil(dwidth() / 8), Math.ceil(dheight() / 8));
+        passEncoder.end();
+        pressure.swap();
+      };
+
+      runPass(gaussSeidelRedPipeline);
+      runPass(gaussSeidelBlackPipeline);
+    }
+
+    // Sync pressure parity with velocity parity if they drifted (e.g. due to splat touches)
+    if (pressure.parity !== velocity.parity) {
       const passEncoder = commandEncoder.beginComputePass();
-      passEncoder.setPipeline(jacobiComputePipeline);
+      passEncoder.setPipeline(gaussSeidelRedPipeline);
       passEncoder.setBindGroup(
         0,
         device.createBindGroup({
@@ -434,28 +460,6 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
   onMount(frame);
   onCleanup(() => cancelAnimationFrame(animation));
-
-  makeEventListener(window, "keydown", async (e) => {
-    if (e.key === "b") {
-      cancelAnimationFrame(animation);
-      setTimeout(async () => {
-        await runBenchmark(
-          device,
-          pipelines.jacobi,
-          jacobiComputePipeline,
-          layouts.float,
-          computeLayout,
-          divergenceTex,
-          pressure,
-          pressurePair,
-          dwidth,
-          dheight,
-          colorAttachment,
-        );
-        animation = requestAnimationFrame(frame);
-      }, 30);
-    }
-  });
 };
 
 const App = () => {
