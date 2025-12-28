@@ -24,10 +24,10 @@ import "./index.css";
 
 const mapObject =
   <U, F extends (key: string, value: U) => any>(fn: F) =>
-  <T extends Record<string, U>>(obj: T) =>
-    Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, fn(k, v as U)])) as { [K in keyof T]: ReturnType<F> };
+    <T extends Record<string, U>>(obj: T) =>
+      Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, fn(k, v as U)])) as { [K in keyof T]: ReturnType<F> };
 
-const DOWNSAMPLE = 2;
+const DOWNSAMPLE = 0;
 type VelTouch = {
   identifier: number;
   x: number;
@@ -140,7 +140,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
 
   const jacobiComputePipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
-    compute: { module: shaders.jacobiCompute, entryPoint: "main" },
+    compute: { module: shaders.jacobiCompute, entryPoint: "jacobiCompute" },
   });
 
   const dwidth = () => width() >> DOWNSAMPLE;
@@ -193,9 +193,9 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   const pressure = new Swappable(
     "r32float",
     GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.COPY_DST |
-      GPUTextureUsage.RENDER_ATTACHMENT |
-      GPUTextureUsage.STORAGE_BINDING,
+    GPUTextureUsage.COPY_DST |
+    GPUTextureUsage.RENDER_ATTACHMENT |
+    GPUTextureUsage.STORAGE_BINDING,
   );
   const divergenceTex = createTexture("r16float");
 
@@ -370,7 +370,7 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
       });
       passEncoder.setPipeline(pipeline);
       bindGroups.forEach((bg, i) => passEncoder.setBindGroup(i, bg));
-      passEncoder.draw(4, 1, 0, 0);
+      passEncoder.draw(3, 1, 0, 0);
       passEncoder.end();
     };
 
@@ -435,21 +435,25 @@ const GPUProgram: GPUProgram = ({ width, height, context, device }) => {
   onMount(frame);
   onCleanup(() => cancelAnimationFrame(animation));
 
-  makeEventListener(window, "keydown", (e) => {
+  makeEventListener(window, "keydown", async (e) => {
     if (e.key === "b") {
-      runBenchmark(
-        device,
-        pipelines.jacobi,
-        jacobiComputePipeline,
-        layouts.float,
-        computeLayout,
-        divergenceTex,
-        pressure,
-        pressurePair,
-        dwidth,
-        dheight,
-        colorAttachment,
-      );
+      cancelAnimationFrame(animation);
+      setTimeout(async () => {
+        await runBenchmark(
+          device,
+          pipelines.jacobi,
+          jacobiComputePipeline,
+          layouts.float,
+          computeLayout,
+          divergenceTex,
+          pressure,
+          pressurePair,
+          dwidth,
+          dheight,
+          colorAttachment,
+        );
+        animation = requestAnimationFrame(frame);
+      }, 30);
     }
   });
 };
