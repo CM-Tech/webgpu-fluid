@@ -9,7 +9,7 @@
     "esModuleInterop": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "types": ["vite/client", "@webgpu/types", "wesl-plugin/suffixes"],
+    "types": ["vite/client", "@webgpu/types"],
     "lib": ["dom", "esnext"]
   }
 }

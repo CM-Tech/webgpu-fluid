@@ -10,17 +10,11 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@types/babel__core": "^7.20.5",
     "@types/node": "^25.0.3",
     "@webgpu/types": "^0.1.68",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3",
-    "vite": "^7.3.0",
-    "vite-plugin-solid": "^2.11.10",
-    "wesl-plugin": "^0.6.49"
+    "vite": "^7.3.0"
   },
-  "dependencies": {
-    "@solid-primitives/event-listener": "^2.4.3",
-    "solid-js": "^1.9.10"
-  }
+  "dependencies": {}
 }
