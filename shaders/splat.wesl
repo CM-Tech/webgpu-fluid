@@ -13,7 +13,8 @@ struct Touch {
 @group(1) @binding(0) var<uniform> touch : Touch;
 
 fn strength(dist: vec2<f32>) -> f32 {
-    return exp(-dot(dist, dist) / radius);
+    let x = dot(dist, dist) / radius;
+    return exp(-pow(x, 3.0));
 }
 
 fn distClosestPoint(c: vec2<f32>) -> f32 {
@@ -38,6 +39,8 @@ fn splatDye(@builtin(position) coords: vec4<f32>) -> @location(0) vec4<f32> {
 fn splatVelocity(@builtin(position) coords: vec4<f32>) -> @location(0) vec2<f32> {
     let velocityBase = textureLoad(velocity, vec2<i32>(coords.xy), 0).xy;
     let upsample = vec2<f32>(textureDimensions(dye)) / vec2<f32>(textureDimensions(velocity));
-    let p = distClosestPoint(coords.xy * upsample);
-    return velocityBase + p * touch.velocity;
+    // Staggered grid: u sits on the +x face of the cell, v on the +y face.
+    let pu = distClosestPoint((coords.xy + vec2<f32>(0.5, 0.0)) * upsample);
+    let pv = distClosestPoint((coords.xy + vec2<f32>(0.0, 0.5)) * upsample);
+    return velocityBase + vec2<f32>(pu, pv) * touch.velocity;
 }
