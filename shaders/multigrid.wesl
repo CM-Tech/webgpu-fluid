@@ -1,10 +1,7 @@
 import package::common::{smoothOmega, coarseOmega, COARSE_ITERS};
 
-// Geometric multigrid for the pressure Poisson equation  A x = b  with pure Neumann walls.
-// A is the compact 5-point Laplacian with unit spacing; neighbours outside the domain are
-// omitted (zero normal gradient), so A is exactly div(grad(.)) on the staggered velocity grid.
-// Coarse levels use the same unit-spacing stencil, so the coarse RHS is the *sum* (not the
-// average) of the 2x2 fine residuals, which accounts for the 4x larger h^2.
+// Coarse levels use the same unit-spacing stencil, so the coarse RHS is the sum (not the
+// average) of the 2x2 fine residuals.
 
 @group(0) @binding(0) var rhs : texture_2d<f32>;
 @group(0) @binding(1) var x : texture_storage_2d<r32float, read_write>;
@@ -23,9 +20,7 @@ fn neighbours(c: vec2<i32>, dims: vec2<i32>) -> Stencil {
     return s;
 }
 
-// Red-black Gauss-Seidel half sweep. Each thread owns one cell of the active colour, so
-// the grid is dispatched at half width; in-place updates are race-free because a cell of
-// one colour only reads cells of the other.
+// Red-black half sweep, dispatched at half width: each thread owns one cell of the active colour.
 fn relaxColor(tid: vec2<u32>, parity: i32) {
     let dims = vec2<i32>(textureDimensions(x));
     let y = i32(tid.y);

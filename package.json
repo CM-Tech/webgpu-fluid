@@ -17,6 +17,7 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "vite-plugin-solid": "^2.11.10",
+    "wesl": "0.6.49",
     "wesl-plugin": "^0.6.49"
   },
   "dependencies": {

@@ -1,5 +1,4 @@
-// Multigrid restriction: coarse RHS = sum of the 2x2 fine residuals r = b - A x (see
-// multigrid.wesl for the scaling). Also zeroes the coarse correction as its initial guess.
+// Also zeroes the coarse correction as its initial guess.
 
 @group(0) @binding(0) var fineX : texture_2d<f32>;
 @group(0) @binding(1) var fineRhs : texture_2d<f32>;

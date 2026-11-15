@@ -36,6 +36,9 @@ importers:
       vite-plugin-solid:
         specifier: ^2.11.10
         version: 2.11.10(solid-js@1.9.10)(vite@7.3.0(@types/node@25.0.3))
+      wesl:
+        specifier: 0.6.49
+        version: 0.6.49
       wesl-plugin:
         specifier: ^0.6.49
         version: 0.6.49(esbuild@0.27.2)(vite@7.3.0(@types/node@25.0.3))

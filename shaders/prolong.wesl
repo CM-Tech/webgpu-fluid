@@ -1,5 +1,3 @@
-// Multigrid prolongation: add the bilinearly interpolated coarse correction to the fine grid.
-
 @group(0) @binding(0) var coarseX : texture_2d<f32>;
 @group(0) @binding(1) var fineX : texture_storage_2d<r32float, read_write>;
 
